@@ -1,0 +1,31 @@
+{
+  "name": "@vautrin/testing",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared Vitest configuration for Vautrin OS (SDD-11)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check ."
+  },
+  "peerDependencies": {
+    "vitest": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0",
+    "vitest": "4.1.11"
+  }
+}

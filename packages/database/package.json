@@ -1,0 +1,47 @@
+{
+  "name": "@vautrin/database",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vautrin OS data layer \u2014 Prisma schema, migrations, tenant-scoped client (VOS-011)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "generated",
+    "prisma"
+  ],
+  "scripts": {
+    "generate": "prisma generate",
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "migrate:dev": "dotenv -e ../../.env -- prisma migrate dev",
+    "migrate:deploy": "dotenv -e ../../.env -- prisma migrate deploy",
+    "migrate:status": "dotenv -e ../../.env -- prisma migrate status",
+    "migrate:reset": "dotenv -e ../../.env -- prisma migrate reset --force",
+    "studio": "dotenv -e ../../.env -- prisma studio",
+    "test": "vitest run",
+    "test:integration": "dotenv -e ../../.env -- vitest run --config vitest.integration.config.ts",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "postinstall": "prisma generate"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@vautrin/testing": "workspace:*",
+    "dotenv-cli": "^8.0.0",
+    "prisma": "^6.1.0",
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0",
+    "vitest": "4.1.11"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  // Nuxt generates the real configs into .nuxt/ during `nuxt prepare`.
+  // This file only points at them, which is why it does not extend
+  // tsconfig.base.json like the other packages.
+  "files": [],
+  "references": [
+    { "path": "./.nuxt/tsconfig.app.json" },
+    { "path": "./.nuxt/tsconfig.server.json" },
+    { "path": "./.nuxt/tsconfig.shared.json" },
+    { "path": "./.nuxt/tsconfig.node.json" }
+  ]
+}

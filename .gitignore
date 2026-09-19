@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+packages/database/generated/
+.output/
+.nuxt/
+.turbo/
+*.tsbuildinfo
+
+# Environment / secrets  (SDD-09 §7 — secrets never enter source control)
+.env
+.env.*
+!.env.example
+
+# Test / coverage
+coverage/
+*.lcov
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

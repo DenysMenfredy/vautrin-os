@@ -1,0 +1,45 @@
+{
+  "name": "vautrin-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vautrin OS \u2014 multi-tenant SaaS platform for local businesses",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": ">=22.19.0",
+    "pnpm": ">=9.15.4"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "biome ci . && eslint --no-error-on-unmatched-pattern \"**/*.vue\"",
+    "lint:fix": "biome check --write . && eslint --no-error-on-unmatched-pattern \"**/*.vue\" --fix",
+    "lint:vue": "eslint --no-error-on-unmatched-pattern \"**/*.vue\"",
+    "lint:packages": "turbo run lint",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "docker:build": "VAUTRIN_IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || echo dev) docker compose build",
+    "docker:up": "VAUTRIN_IMAGE_TAG=$(git rev-parse --short HEAD 2>/dev/null || echo dev) docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f api worker",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down",
+    "infra:reset": "docker compose -f infra/docker-compose.yml down -v && docker compose -f infra/docker-compose.yml up -d",
+    "db:generate": "pnpm --filter @vautrin/database generate",
+    "db:migrate": "pnpm --filter @vautrin/database migrate:dev",
+    "db:deploy": "pnpm --filter @vautrin/database migrate:deploy",
+    "db:studio": "pnpm --filter @vautrin/database studio"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "^26.6.2",
+    "@typescript-eslint/parser": "^8.70.0",
+    "eslint": "^10.11.0",
+    "eslint-plugin-vue": "^10.11.0",
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2",
+    "vue-eslint-parser": "^10.4.1"
+  }
+}

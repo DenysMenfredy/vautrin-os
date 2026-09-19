@@ -1,0 +1,39 @@
+# Build context hygiene. Anything listed here is never sent to the daemon,
+# which keeps builds fast and stops host state from leaking into an image.
+
+# Never: these are host-local and would poison the image's dependency tree
+# (native binaries built for the host, wrong platform).
+**/node_modules
+**/dist
+**/.turbo
+**/.nuxt
+**/.output
+**/*.tsbuildinfo
+
+# Secrets (SDD-09 §7). .env.example is intentionally allowed through.
+.env
+.env.*
+!.env.example
+
+# Version control and CI
+.git
+.github
+.gitignore
+
+# Local tooling / editor
+.vscode
+.idea
+**/coverage
+**/*.log
+
+# Docs and source material — not needed to build a runnable image
+docs
+backlog
+*.md
+!packages/*/README.md
+*.pdf
+*.zip
+
+# Compose and infra definitions are inputs to the runtime, not the build
+infra
+docker-compose*.yml

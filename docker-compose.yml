@@ -1,0 +1,123 @@
+# ---------------------------------------------------------------------------
+# Vautrin OS — full stack (VOS-023)
+#
+#     docker compose up -d --build       run everything in containers
+#     docker compose down -v             tear down, including data
+#
+# This is the "everything containerised" view. For day-to-day development you
+# usually want the opposite split: infrastructure in Docker, applications on
+# the host with hot reload —
+#
+#     docker compose -f infra/docker-compose.yml up -d
+#     pnpm --filter @vautrin/api dev
+#
+# infra/docker-compose.yml is included rather than duplicated, so PostgreSQL
+# and Redis are defined exactly once.
+# ---------------------------------------------------------------------------
+
+name: vautrin-os
+
+include:
+  - infra/docker-compose.yml
+
+# Connection strings are repeated across services, so they live here once.
+x-database-url: &database-url
+  postgresql://vautrin_app:${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}@postgres:5432/${POSTGRES_DB:-vautrin}?schema=public
+
+x-migration-url: &migration-url
+  postgresql://vautrin_migrator:${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}@postgres:5432/${POSTGRES_DB:-vautrin}?schema=public
+
+services:
+  # -------------------------------------------------------------------------
+  # One-shot migration job (SDD-12 §7).
+  #
+  # Runs to completion before the applications start. Keeping this out of the
+  # application entrypoints is what stops N replicas from racing the same DDL
+  # on every rollout.
+  # -------------------------------------------------------------------------
+  migrate:
+    build:
+      context: .
+      dockerfile: packages/database/Dockerfile
+    image: vautrin/migrate:${VAUTRIN_IMAGE_TAG:-dev}
+    restart: 'no'
+    environment:
+      # Connects as the schema-owning role — the one case where that is correct.
+      DATABASE_URL: *database-url
+      DATABASE_MIGRATION_URL: *migration-url
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    image: vautrin/api:${VAUTRIN_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    # Reaps zombies and forwards signals, so SIGTERM reaches Nest's shutdown
+    # hooks intact.
+    init: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      # The least-privileged role. RLS only constrains this one (ADR-005).
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      API_PORT: 3000
+      API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+    ports:
+      - '${API_HOST_PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # Do not serve traffic against a schema that has not been migrated.
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build:
+      context: .
+      dockerfile: apps/worker/Dockerfile
+    image: vautrin/worker:${VAUTRIN_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      DATABASE_URL: *database-url
+      REDIS_URL: redis://redis:6379
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: vautrin/web:${VAUTRIN_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      # Server-side only. The browser never sees this: it calls /api on the
+      # Nuxt origin and Nitro proxies onward (apps/web/server/api).
+      NUXT_API_INTERNAL_BASE: http://api:3000/api
+      # Relative, so browser requests stay same-origin — no CORS, and session
+      # cookies work once auth lands (VOS-030).
+      NUXT_PUBLIC_API_BASE: /api
+      PORT: 3000
+    ports:
+      # 3001 is commonly occupied on developer machines, so 3002 by default.
+      - '${WEB_HOST_PORT:-3002}:3000'
+    depends_on:
+      api:
+        condition: service_healthy

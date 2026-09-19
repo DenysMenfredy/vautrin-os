@@ -1,0 +1,53 @@
+# Vautrin OS — local development infrastructure (VOS-010, SDD-12 §2)
+#
+#   docker compose -f infra/docker-compose.yml up -d
+#
+# Host ports are overridable because 5432/5433 are frequently occupied by
+# locally installed PostgreSQL instances.
+
+name: vautrin-os
+
+services:
+  postgres:
+    # pgvector ships PostgreSQL + the `vector` extension preinstalled (ADR-004).
+    image: pgvector/pgvector:pg17
+    container_name: vautrin-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-vautrin}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-vautrin}
+      # Roles created by initdb scripts reuse this password in local dev only.
+      VAUTRIN_ROLE_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}
+    ports:
+      - '${POSTGRES_PORT:-5435}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once, on an empty data directory.
+      - ./postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_SUPERUSER:-vautrin} -d ${POSTGRES_DB:-vautrin}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    # Queue backend for BullMQ (ADR-009). Disposable: no business state here.
+    image: redis:7-alpine
+    container_name: vautrin-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:
+  redis-data:

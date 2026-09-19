@@ -1,0 +1,155 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.14/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "includes": [
+      "**/*.ts",
+      "**/*.tsx",
+      "**/*.js",
+      "**/*.mjs",
+      "**/*.cjs",
+      "**/*.vue",
+      "**/*.json",
+      "**/*.jsonc",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/.turbo",
+      "!**/.nuxt",
+      "!**/.output",
+      "!**/coverage",
+      "!**/pnpm-lock.yaml"
+    ]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    // NestJS dependency injection is expressed with parameter decorators
+    // (@Inject, @Body, @Param, @Query). Biome calls these "unsafe" because
+    // they are a pre-standard TypeScript feature; the repository already
+    // opts into them through `experimentalDecorators` in tsconfig.base.json,
+    // so refusing to parse them here would only make Biome blind to every
+    // Nest provider and controller.
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
+    "formatter": {
+      "quoteStyle": "single",
+      "jsxQuoteStyle": "double",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
+    }
+  },
+  "json": {
+    "formatter": {
+      "enabled": true,
+      "trailingCommas": "none"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["warn", "error"]
+          }
+        },
+        "useAwait": "error"
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUnusedFunctionParameters": "error"
+      },
+      "style": {
+        "useImportType": "error",
+        "useExportType": "error",
+        "noNonNullAssertion": "error",
+        "useConst": "error",
+        "noParameterAssign": "error",
+        "useNamingConvention": {
+          "level": "off"
+        }
+      },
+      "complexity": {
+        "noForEach": "off"
+      }
+    }
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  // Vue single-file components need one adjustment.
+  //
+  // In `<script setup>`, top-level bindings are exposed to the template
+  // implicitly, and imported components are referenced by tag name. Biome
+  // does not parse <template>, so it sees both as unused and reports false
+  // positives on correct code.
+  //
+  // These two rules are therefore delegated to ESLint, where
+  // vue-eslint-parser resolves template references into script scope and
+  // `no-unused-vars` becomes accurate. See eslint.config.mjs.
+  "overrides": [
+    {
+      // NestJS apps: `useImportType` is actively unsafe here.
+      //
+      // Nest resolves constructor dependencies from `design:paramtypes`,
+      // which TypeScript only emits for imports that survive to runtime.
+      // A constructor parameter is a type position, so the rule rewrites
+      //
+      //   import { DatabaseService }      ->  import type { DatabaseService }
+      //
+      // and the metadata becomes `undefined`. The application then fails to
+      // boot with "Nest can't resolve dependencies", and it fails in the
+      // built output, not just under the test runner. Biome cannot tell an
+      // injectable class apart from a plain type, so the rule is off for
+      // these two packages and stays on everywhere else.
+      "includes": ["apps/api/**", "apps/worker/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useImportType": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["**/*.vue"],
+      "linter": {
+        "rules": {
+          "correctness": {
+            "noUnusedVariables": "off",
+            "noUnusedImports": "off"
+          },
+          "style": {
+            // Nuxt derives a component's name from its file path, so
+            // pages/index.vue and layouts/default.vue are correct and
+            // idiomatic. Off here for the same reason
+            // vue/multi-word-component-names is off in eslint.config.mjs —
+            // the two linters must agree or one will always be shouting.
+            "useVueMultiWordComponentNames": "off"
+          }
+        }
+      }
+    }
+  ]
+}

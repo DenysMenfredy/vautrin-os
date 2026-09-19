@@ -1,0 +1,32 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "stream",
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": ["DATABASE_URL", "DATABASE_MIGRATION_URL", "REDIS_URL"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build", "generate"],
+      "outputs": ["dist/**", ".nuxt/**", ".output/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "../../biome.jsonc"]
+    },
+    "typecheck": {
+      "dependsOn": ["^build", "generate"]
+    },
+    "test": {
+      "dependsOn": ["^build", "generate"]
+    },
+    "test:integration": {
+      "dependsOn": ["^build", "generate"],
+      "cache": false
+    },
+    "generate": {
+      "cache": false
+    }
+  }
+}
