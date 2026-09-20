@@ -34,6 +34,41 @@ export default defineNuxtConfig({
   // 3000 is apps/api; 3001 is commonly occupied on developer machines.
   devServer: { port: 3002 },
 
+  /**
+   * Security headers (SDD-09).
+   *
+   * Unlike the API, this process serves documents, so a CSP is meaningful
+   * here. It is deliberately strict but not yet locked down to nonces:
+   * Nuxt's hydration payload is an inline script, hence 'unsafe-inline'.
+   * Tightening that to nonce-based CSP is worth doing before the dashboard
+   * handles real customer data.
+   *
+   * `frame-ancestors 'none'` and nosniff are the two with immediate value —
+   * clickjacking and content sniffing need no further configuration to matter.
+   */
+  nitro: {
+    routeRules: {
+      '/**': {
+        headers: {
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+          'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+          'Content-Security-Policy': [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "connect-src 'self'",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+          ].join('; '),
+        },
+      },
+    },
+  },
+
   css: ['~/assets/css/main.css'],
 
   devtools: { enabled: true },

@@ -4,6 +4,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Environment } from '@vautrin/config';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
@@ -16,6 +17,25 @@ async function bootstrap(): Promise<void> {
 
   // Release the logs buffered during module initialisation.
   app.flushLogs();
+
+  /**
+   * Security headers (SDD-09).
+   *
+   * `nosniff` is the one that matters most for a JSON API: without it a
+   * browser may content-sniff a response into something executable.
+   *
+   * CSP is disabled here because this process serves JSON, not documents —
+   * a policy on an API response protects nothing and only shows up as noise.
+   * The frontend sets its own; see apps/web/nuxt.config.ts.
+   *
+   * helmet also removes X-Powered-By, which was advertising Express.
+   */
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
 
   app.setGlobalPrefix(environment.API_GLOBAL_PREFIX);
 

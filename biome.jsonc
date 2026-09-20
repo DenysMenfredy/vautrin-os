@@ -110,6 +110,20 @@
   // `no-unused-vars` becomes accurate. See eslint.config.mjs.
   "overrides": [
     {
+      // CLI scripts: stdout is the interface, not stray debug output.
+      // noConsole exists to keep console calls out of application code,
+      // where a logger belongs; it has nothing to say about a tool whose
+      // whole job is to print a result and set an exit code.
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    },
+    {
       // NestJS apps: `useImportType` is actively unsafe here.
       //
       // Nest resolves constructor dependencies from `design:paramtypes`,

@@ -79,9 +79,11 @@ Mailpit or equivalent for development.
 ## EPIC E2 — CI/CD
 
 ### VOS-020 [P0] GitHub Actions PR pipeline
+**Status:** DONE — .github/workflows/ci.yml `quality` job: lint (Biome + ESLint), format check, typecheck, unit tests, build.
 Lint, typecheck, unit tests, build.
 
 ### VOS-021 [P0] Integration-test service containers
+**Status:** DONE — ci.yml `integration` job with pgvector/pg17 + redis:7 service containers, role provisioning matching infra/postgres/initdb, migrations, and an assertion that the runtime role cannot bypass RLS.
 PostgreSQL + Redis.
 
 ### VOS-022 [P1] E2E pipeline
@@ -98,6 +100,7 @@ Automated deployment after main.
 Approval + smoke tests + rollback documentation.
 
 ### VOS-026 [P0] Secret scanning
+**Status:** DONE — ci.yml `security` job: TruffleHog secret scan over full history, `pnpm audit` gated at high, non-root Dockerfile assertion, and scripts/check-rls-coverage.mjs. Plus .github/workflows/codeql.yml (security-extended).
 Prevent accidental credential commits.
 
 ---
@@ -382,6 +385,23 @@ Messaging/calendar failure and recovery.
 Ensure idempotent external action.
 
 ---
+
+## Security review log
+
+### 2026-09-19 — first security pass (CI introduction)
+
+Findings and disposition:
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| 1 | Nuxt `/api` proxy allowed path traversal out of the `/api` prefix, reaching arbitrary paths on the internal API host | High | Fixed — path confinement + 12 regression tests |
+| 2 | `deepmerge-ts@7.1.5` stack exhaustion (GHSA-ggr8-5vv4-36mx) via `@prisma/client` | High | Fixed — pnpm override to >=8.0.2 |
+| 3 | `x-correlation-id` reflected unbounded and unvalidated into responses and future logs | Medium | Fixed — UUID validation, invalid values dropped |
+| 4 | No security headers on API or web; `X-Powered-By` disclosed Express and Nuxt | Medium | Fixed — helmet on API, CSP/nosniff/frame-ancestors on web |
+| 5 | Requests outside the API global prefix bypass the exception filter and return an Express HTML error page | Low | Accepted — discloses only that Express is in use; revisit with VOS-120 |
+| 6 | Compose files default to a well-known local password | Low | Accepted — local dev tooling; production provisioning is VOS-024/VOS-025 |
+
+See SECURITY.md for the standing control list and known gaps.
 
 ## Definition of MVP complete
 

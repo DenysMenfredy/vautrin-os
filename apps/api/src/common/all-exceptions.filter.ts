@@ -39,7 +39,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const context = host.switchToHttp();
     const response = context.getResponse<Response>();
     const request = context.getRequest<Request>();
-    const correlationId = request.header('x-correlation-id') ?? undefined;
+    const correlationId = readCorrelationId(request);
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
@@ -74,3 +74,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     } satisfies ErrorResponseBody);
   }
 }
+
+/**
+ * Reads a client-supplied correlation id, if it is one.
+ *
+ * The header is attacker-controlled and gets reflected into the response —
+ * and, once structured logging lands (VOS-120), into log records. Echoing it
+ * verbatim accepted 5 KB of arbitrary text, which is a log-injection and
+ * response-amplification vector rather than a tracing aid.
+ *
+ * Only a UUID is accepted. Anything else is dropped rather than rejected:
+ * a malformed trace header should not turn a working request into an error.
+ */
+function readCorrelationId(request: Request): string | undefined {
+  const value = request.header('x-correlation-id');
+  if (value === undefined) return undefined;
+
+  return CORRELATION_ID_PATTERN.test(value) ? value : undefined;
+}
+
+const CORRELATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

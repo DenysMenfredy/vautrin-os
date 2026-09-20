@@ -1,0 +1,213 @@
+# ---------------------------------------------------------------------------
+# Pull request pipeline (VOS-020, VOS-021, VOS-026)
+#
+# Implements the gates in SDD-11 §9 and the flow in SDD-12 §3:
+#   lint -> typecheck -> unit -> integration -> build -> security
+#
+# Jobs run in parallel where they are independent. `quality` and `security`
+# need no services; `integration` brings up PostgreSQL and Redis.
+# ---------------------------------------------------------------------------
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to the same PR makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege (SDD-09 §10). Jobs that need more ask for it explicitly.
+permissions:
+  contents: read
+
+env:
+  # Keep CI output free of interactive prompts and telemetry.
+  CI: true
+  DO_NOT_TRACK: '1'
+  CHECKPOINT_DISABLE: '1'
+
+jobs:
+  # -------------------------------------------------------------------------
+  quality:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          # Single source of truth for the Node version.
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Biome for TypeScript and Vue <script>, ESLint for Vue <template>.
+      # They cover different things; running only one leaves a real gap.
+      - name: Lint and format
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+      - name: Unit tests
+        run: pnpm run test
+
+      - name: Build
+        run: pnpm run build
+
+  # -------------------------------------------------------------------------
+  integration:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        # Must match infra/docker-compose.yml: the tenant-isolation tests
+        # depend on pgvector and on RLS behaving identically to local dev.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: vautrin
+          POSTGRES_PASSWORD: vautrin_ci
+          POSTGRES_DB: vautrin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vautrin -d vautrin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://vautrin_app:vautrin_ci@localhost:5432/vautrin?schema=public
+      DATABASE_MIGRATION_URL: postgresql://vautrin_migrator:vautrin_ci@localhost:5432/vautrin?schema=public
+      REDIS_URL: redis://localhost:6379
+      EMBEDDING_DIMENSIONS: '1536'
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # GitHub's `services:` cannot run initdb scripts, so the roles that
+      # infra/postgres/initdb/01-roles.sql creates locally are created here.
+      # This is not incidental setup: vautrin_app must be a separate,
+      # non-superuser role or the RLS tests would pass vacuously (ADR-005).
+      - name: Provision database roles
+        env:
+          PGPASSWORD: vautrin_ci
+        run: |
+          psql -h localhost -U vautrin -d vautrin -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE vautrin_migrator LOGIN CREATEDB SUPERUSER PASSWORD 'vautrin_ci';
+          CREATE ROLE vautrin_app LOGIN NOBYPASSRLS NOCREATEDB NOSUPERUSER PASSWORD 'vautrin_ci';
+          ALTER SCHEMA public OWNER TO vautrin_migrator;
+          GRANT CONNECT ON DATABASE vautrin TO vautrin_app;
+          GRANT USAGE ON SCHEMA public TO vautrin_app;
+          REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+          CREATE EXTENSION IF NOT EXISTS vector;
+          SQL
+
+      - name: Apply migrations
+        run: pnpm run db:deploy
+
+      # Fails the build if the runtime role could bypass RLS, which would
+      # make every isolation assertion meaningless rather than failing loudly.
+      - name: Assert the runtime role cannot bypass RLS
+        env:
+          PGPASSWORD: vautrin_ci
+        run: |
+          psql -h localhost -U vautrin -d vautrin -tAc \
+            "SELECT CASE WHEN rolsuper OR rolbypassrls THEN 'INSECURE' ELSE 'ok' END
+             FROM pg_roles WHERE rolname = 'vautrin_app'" | grep -qx ok
+
+      - name: Build workspace packages
+        run: pnpm run build
+
+      - name: Integration tests
+        run: pnpm run test:integration
+
+  # -------------------------------------------------------------------------
+  security:
+    name: Security checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # TruffleHog diffs commits, so it needs history rather than a
+          # shallow clone.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      # VOS-026 — stop credentials reaching the repository. Verified secrets
+      # only, so a rotated or example key does not block every PR.
+      - name: Secret scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --results=verified,unknown --fail
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Known CVEs in the dependency tree. `high` is the gate; lower
+      # severities are reported without failing the build.
+      - name: Audit dependencies (report)
+        run: pnpm audit --audit-level=low || true
+
+      - name: Audit dependencies (gate)
+        run: pnpm audit --audit-level=high
+
+      # The Dockerfiles run as a non-root user and that must stay true —
+      # it is the cheapest container control we have (SDD-09 §10).
+      - name: Assert images do not run as root
+        run: |
+          status=0
+          for dockerfile in apps/api/Dockerfile apps/worker/Dockerfile apps/web/Dockerfile; do
+            if ! grep -qE '^USER[[:space:]]+node' "$dockerfile"; then
+              echo "::error file=$dockerfile::missing 'USER node' — image would run as root"
+              status=1
+            fi
+          done
+          exit $status
+
+      # A tenant-scoped table without RLS is the single most likely way
+      # isolation regresses (ADR-005). The migration itself enforces this at
+      # deploy time; this check surfaces it during review instead.
+      - name: Assert every tenant-scoped model is covered by an RLS policy
+        run: node scripts/check-rls-coverage.mjs
