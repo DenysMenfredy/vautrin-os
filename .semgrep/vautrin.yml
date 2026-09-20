@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Project-specific security rules.
+#
+# These exist because the community rulesets do not model Nitro/Nuxt or
+# NestJS idioms, so they miss bugs that are specific to how this codebase is
+# built. Each rule below encodes a real finding, so the same mistake cannot
+# return quietly.
+# ---------------------------------------------------------------------------
+
+rules:
+  # Found for real on 2026-09-19: the frontend's /api proxy interpolated a
+  # request-controlled path straight into the target URL, so
+  # `GET /api/../../admin` on the public origin reached `/admin` on the
+  # internal API. Nothing was mounted there yet, which is the only reason it
+  # was harmless.
+  - id: vautrin-nitro-proxy-tainted-path
+    mode: taint
+    languages: [typescript, javascript]
+    severity: ERROR
+    message: >-
+      A request-controlled path reaches proxyRequest() without being resolved
+      through the URL parser. Interpolating it directly lets `../` escape the
+      intended prefix and reach arbitrary paths on the internal host. Resolve
+      with `new URL(path, base)` and assert the result stays on the same
+      origin and under the base pathname.
+    pattern-sources:
+      # The path segment only. The query string is forwarded deliberately and
+      # sits after '?', so it cannot escape the path — including it here
+      # flags the corrected code and teaches people to ignore the rule.
+      - pattern: getRouterParam(...)
+    pattern-sinks:
+      - pattern: proxyRequest(...)
+      - pattern: sendProxy(...)
+    pattern-sanitizers:
+      # The fix: resolution through the URL parser, followed by a containment
+      # check. URL normalises `..` so the check can be meaningful.
+      - pattern: new URL(...)
+
+  # SDD-05 §3 / ADR-005: tenant-scoped reads must carry tenant context.
+  # `.unscoped` bypasses RLS filtering by design and is only correct for
+  # health probes and pre-authentication lookups.
+  - id: vautrin-unscoped-database-access
+    languages: [typescript]
+    severity: WARNING
+    message: >-
+      `.unscoped` reaches the database with no tenant context, so RLS returns
+      nothing for tenant-scoped tables and any read here silently sees zero
+      rows. Valid only for health probes and the authentication lookup that
+      runs before a tenant is known. Otherwise use withTenant().
+    patterns:
+      - pattern: $DB.unscoped
+      - pattern-not-inside: |
+          class $C {
+            ...
+            $M(...) { ... $DB.unscoped.$Q`SELECT 1`; ... }
+            ...
+          }
+    paths:
+      include:
+        - '**/apps/api/**'
+        - '**/apps/worker/**'
+      exclude:
+        - '**/*.test.ts'
+        - '**/health/**'

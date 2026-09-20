@@ -15,11 +15,39 @@ Every pull request runs (`.github/workflows/ci.yml`):
 | `pnpm audit` | Known CVEs in the dependency tree; gated at **high** |
 | Non-root assertion | A Dockerfile that lost its `USER node` |
 | RLS coverage | A tenant-scoped table shipped without an RLS policy |
-| CodeQL (`codeql.yml`) | Injection, tainted data reaching a sink, unsafe APIs |
+| Semgrep (`sast` job) | Community packs (injection, unsafe APIs, OWASP Top 10) plus `.semgrep/vautrin.yml`, project rules encoding findings that actually occurred here |
+| CodeQL (`codeql.yml`) | **Currently skipped** — see below |
 
 The integration job additionally asserts that the runtime database role holds
 neither `SUPERUSER` nor `BYPASSRLS`. Without that, every tenant-isolation test
 would pass vacuously.
+
+## CodeQL is not running
+
+CodeQL requires GitHub Code Security (formerly part of GitHub Advanced
+Security) on a **private** repository. That is a paid add-on and is not
+available on a free personal account, so there is no setting to enable —
+the repository has no code-scanning feature at all, and the API answers:
+
+```
+403 Code scanning is not enabled for this repository.
+```
+
+The workflow is therefore conditioned on `github.event.repository.private ==
+false`. It is kept rather than deleted so it starts working by itself if the
+repository is made public or Code Security is purchased.
+
+**What that costs us.** Semgrep's community rules were checked against the
+path-traversal bug found in the `/api` proxy on 2026-09-19 and did **not**
+detect it. Interprocedural taint analysis of that quality is the thing
+CodeQL provides and Semgrep's free rules do not. The gap is partially closed
+by writing project-specific rules — `vautrin-nitro-proxy-tainted-path` was
+written from that finding and is verified to catch the vulnerable code and
+pass the fixed code — but that is reactive: it encodes bugs already found
+rather than discovering new ones.
+
+Treat manual review of request-controlled data reaching a sink as a
+first-class review responsibility until CodeQL can run.
 
 ## Controls in place
 

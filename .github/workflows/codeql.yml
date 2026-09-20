@@ -30,6 +30,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
+    # CodeQL on a PRIVATE repository requires GitHub Code Security (formerly
+    # part of GitHub Advanced Security), a paid add-on that is not available
+    # on free personal accounts. There is no setting to switch on: the
+    # repository simply has no code-scanning feature, and the API answers
+    #   403 "Code scanning is not enabled for this repository".
+    #
+    # Skipping rather than deleting, so this starts working by itself the day
+    # the repository becomes public or Code Security is purchased. Semgrep in
+    # ci.yml covers the same class of bug in the meantime.
+    if: ${{ github.event.repository.private == false }}
+
     permissions:
       contents: read
       # Required to upload results to the Security tab.

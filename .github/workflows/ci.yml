@@ -156,6 +156,45 @@ jobs:
         run: pnpm run test:integration
 
   # -------------------------------------------------------------------------
+  sast:
+    name: Static analysis (Semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: pipx install semgrep==1.177.0
+
+      # Two sources of rules:
+      #   - community packs for the common classes (injection, unsafe APIs,
+      #     hardcoded credentials, OWASP Top 10);
+      #   - .semgrep/vautrin.yml for this codebase's own idioms, which the
+      #     community packs do not model. Each custom rule encodes a finding
+      #     that actually occurred here.
+      #
+      # This is not a CodeQL replacement — see .github/workflows/codeql.yml
+      # for why that job cannot run on a private repository, and SECURITY.md
+      # for what is consequently not covered.
+      - name: Semgrep
+        run: |
+          semgrep scan \
+            --config=.semgrep/vautrin.yml \
+            --config=p/typescript \
+            --config=p/security-audit \
+            --config=p/owasp-top-ten \
+            --error \
+            --metrics=off \
+            --exclude=node_modules --exclude=dist \
+            --exclude=.nuxt --exclude=.output --exclude=generated \
+            apps packages scripts
+
+  # -------------------------------------------------------------------------
   security:
     name: Security checks
     runs-on: ubuntu-latest
