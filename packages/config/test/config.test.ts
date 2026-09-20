@@ -36,7 +36,10 @@ describe('loadEnvironment', () => {
   it('never echoes the connection string back in the error', () => {
     // Connection strings carry passwords; the message must stay safe to log.
     try {
-      loadEnvironment({ ...valid, REDIS_URL: 'http://user:hunter2@host' });
+      // The marker must sit on the same line as the match. Synthetic value:
+      // this test asserts the password is NOT echoed back, so it has to
+      // contain one.
+      loadEnvironment({ ...valid, REDIS_URL: 'http://user:hunter2@host' }); // trufflehog:ignore
       expect.unreachable('should have thrown');
     } catch (error) {
       expect((error as Error).message).not.toContain('hunter2');
@@ -50,8 +53,8 @@ describe('loadEnvironment', () => {
       loadEnvironment({
         ...valid,
         NODE_ENV: 'production',
-        DATABASE_URL: 'postgresql://same_role:pw@db/vautrin',
-        DATABASE_MIGRATION_URL: 'postgresql://same_role:pw@db/vautrin',
+        DATABASE_URL: 'postgresql://same_role:pw@db/vautrin', // trufflehog:ignore
+        DATABASE_MIGRATION_URL: 'postgresql://same_role:pw@db/vautrin', // trufflehog:ignore
       }),
     ).toThrow(/must not own the schema/);
   });

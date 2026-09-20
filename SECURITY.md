@@ -11,7 +11,7 @@ Every pull request runs (`.github/workflows/ci.yml`):
 
 | Check | What it catches |
 |---|---|
-| TruffleHog | Credentials committed to the repository (VOS-026) |
+| TruffleHog | Credentials committed to the repository (VOS-026). Runs with `--results=verified,unknown`, so a real secret that cannot be verified still fails. Deliberate test fixtures carry an inline `trufflehog:ignore` on the matching line. |
 | `pnpm audit` | Known CVEs in the dependency tree; gated at **high** |
 | Non-root assertion | A Dockerfile that lost its `USER node` |
 | RLS coverage | A tenant-scoped table shipped without an RLS policy |

@@ -177,10 +177,14 @@ jobs:
 
       # VOS-026 — stop credentials reaching the repository. Verified secrets
       # only, so a rotated or example key does not block every PR.
+      # Pinned rather than @main: the action supplies its own `--fail`, and
+      # passing it again here is what broke the first run
+      # ("flag 'fail' cannot be repeated"). A floating ref means the argument
+      # list can change under us again.
       - name: Secret scan
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.97.5
         with:
-          extra_args: --results=verified,unknown --fail
+          extra_args: --results=verified,unknown
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
