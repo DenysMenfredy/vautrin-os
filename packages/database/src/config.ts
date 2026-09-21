@@ -33,3 +33,11 @@ export const EMBEDDING_DIMENSIONS = readInt('EMBEDDING_DIMENSIONS', 1536);
 
 /** Session setting that carries the active tenant into PostgreSQL (SDD-05 §4). */
 export const TENANT_SETTING = 'app.tenant_id';
+
+/**
+ * Session setting that carries the authenticated user.
+ *
+ * Used only by the authentication path, which must read a person's own
+ * memberships before any tenant is known (SDD-05 §2).
+ */
+export const USER_SETTING = 'app.user_id';

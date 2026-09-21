@@ -65,6 +65,7 @@ export {
   type TenantScopedClient,
   type WithTenantOptions,
   withTenant,
+  withUser,
 } from './tenant-context.js';
 export {
   type KnowledgeSearchResult,

@@ -19,6 +19,7 @@ hardcoded into unrelated domain code.
 tenants
 users
 tenant_users
+refresh_tokens
 business_profiles
 locations
 
@@ -51,6 +52,17 @@ audit_logs
 custom_field_definitions
 custom_field_values
 ```
+
+### Global tables
+
+`users` and `refresh_tokens` are not tenant-scoped. Both describe a person
+rather than a tenant's data, and both must be readable before an active
+tenant is known — authentication looks a user up by email, and a refresh
+token is redeemed before any tenant is selected. Neither carries `tenant_id`
+and neither has an RLS policy (ADR-013).
+
+Tenant-scoped access to people goes through `tenant_users`, which is
+protected.
 
 ## 4. Common columns
 

@@ -108,18 +108,23 @@ Prevent accidental credential commits.
 ## EPIC E3 — Authentication and tenant foundation
 
 ### VOS-030 [P0] User authentication
+**Status:** DONE — POST /auth/login, /auth/refresh, /auth/logout, GET /auth/me. Argon2id passwords, JWT access tokens, rotating refresh tokens with reuse detection (ADR-013).
 Login/session flow.
 
 ### VOS-031 [P0] Tenant entity
+**Status:** DONE — TenantService.provision creates a tenant and its first owner in one transaction, without any RLS bypass.
 Tenant creation and lifecycle.
 
 ### VOS-032 [P0] Tenant membership
+**Status:** DONE — TenantService.addMember / revokeMembership over tenant_users, with role assignment.
 User ↔ tenant roles.
 
 ### VOS-033 [P0] Tenant context
+**Status:** DONE — JwtAuthGuard resolves the active tenant from the access token; POST /auth/tenant switches it after re-verifying membership. Client-supplied tenant ids are never trusted (SDD-05 §2).
 Resolve active tenant from authenticated request.
 
 ### VOS-034 [P0] RBAC
+**Status:** DONE — capability model in @vautrin/auth (ADR-011, SDD-09 §3), enforced by a global CapabilityGuard with @RequireCapability. Denials are audited.
 Owner/admin/manager/staff/read-only.
 
 ### VOS-035 [P0] RLS framework
@@ -326,6 +331,7 @@ Draft communication only; no autonomous price approval.
 Request/job correlation.
 
 ### VOS-121 [P0] Audit log
+**Status:** PARTIAL — AuditService writes audit_logs for authentication and authorization-denied events. Customer/lead mutations and integration actions are added as those modules land.
 Important state changes.
 
 ### VOS-122 [P1] Workflow telemetry

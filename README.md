@@ -65,6 +65,7 @@ The architecture is vertical-agnostic even though the first production template 
 - `docs/adr/010-integration-abstraction.md`
 - `docs/adr/011-authentication-rbac.md`
 - `docs/adr/012-observability.md`
+- `docs/adr/013-session-and-token-strategy.md`
 
 ### Engineering agent guidance
 - `AGENTS.md`

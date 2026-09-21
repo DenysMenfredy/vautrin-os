@@ -5,6 +5,7 @@ import {
   ApiServiceUnavailableResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../auth/decorators/public.decorator.js';
 import { LivenessDto, ReadinessDto } from './health.dto.js';
 import { HealthService } from './health.service.js';
 
@@ -20,6 +21,10 @@ import { HealthService } from './health.service.js';
  * Collapsing them would let a brief database blip trigger a pod restart,
  * which is exactly the wrong response.
  */
+// Unauthenticated by necessity: the container healthcheck and the load
+// balancer have no credentials, and a probe that needs a token is a probe
+// that reports unhealthy the moment auth breaks.
+@Public()
 @ApiTags('health')
 @Controller('health')
 export class HealthController {

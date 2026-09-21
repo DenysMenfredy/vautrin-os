@@ -27,6 +27,12 @@ Use short-lived access credentials and a secure refresh/session mechanism.
 Authentication identifies the user.
 Authorization determines what the user can do.
 
+The mechanism is specified in ADR-013: short-lived JWT access tokens (15
+minutes, carrying the active tenant) plus rotating opaque refresh tokens
+stored hashed in PostgreSQL, with family-based reuse detection.
+
+Passwords are stored as Argon2id digests, never reversibly.
+
 ## 3. Authorization
 
 Permissions are scoped to:

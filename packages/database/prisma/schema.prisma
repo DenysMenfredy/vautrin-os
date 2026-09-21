@@ -390,6 +390,7 @@ model User {
   deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
 
   memberships          TenantUser[]
+  refreshTokens        RefreshToken[]
   assignedLeads        Lead[]            @relation("LeadAssignee")
   assignedConversations Conversation[]   @relation("ConversationAssignee")
   assignedAppointments Appointment[]     @relation("AppointmentAssignee")
@@ -414,6 +415,50 @@ model TenantUser {
   @@index([tenantId, role])
   @@index([userId])
   @@map("tenant_users")
+}
+
+/// ADR-013 — an opaque, rotating refresh token.
+///
+/// Global like User, not tenant-scoped: it authenticates a person and is
+/// redeemed before any tenant is selected, so it carries no `tenant_id` and
+/// has no RLS policy (SDD-04 §3 "Global tables").
+model RefreshToken {
+  id     String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+
+  /// SHA-256 of the token. The token itself is never stored, so a database
+  /// disclosure yields nothing usable.
+  tokenHash String @unique @map("token_hash")
+
+  /// Rotation lineage. Redeeming an already-replaced token means it was
+  /// captured, and the whole family is revoked.
+  familyId String @map("family_id") @db.Uuid
+
+  /// Set when this token is rotated; points at its successor.
+  replacedById String?   @unique @map("replaced_by_id") @db.Uuid
+  revokedAt    DateTime? @map("revoked_at") @db.Timestamptz(6)
+  /// Why it was revoked: "rotated", "logout", "reuse_detected".
+  revokedReason String?  @map("revoked_reason")
+
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  usedAt    DateTime? @map("used_at") @db.Timestamptz(6)
+
+  /// Diagnostics for a stolen-token investigation. Not used for authorization.
+  userAgent String? @map("user_agent")
+  ipAddress String? @map("ip_address") @db.Inet
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  replacedBy RefreshToken? @relation("TokenRotation", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces   RefreshToken? @relation("TokenRotation")
+
+  @@index([userId, revokedAt])
+  /// Family revocation on reuse detection.
+  @@index([familyId])
+  /// Expired-token cleanup.
+  @@index([expiresAt])
+  @@map("refresh_tokens")
 }
 
 // ---------------------------------------------------------------------------

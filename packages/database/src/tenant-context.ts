@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from '../generated/client/index.js';
 
-import { TENANT_SETTING } from './config.js';
+import { TENANT_SETTING, USER_SETTING } from './config.js';
 import { InvalidTenantContextError } from './errors.js';
 
 /**
@@ -69,6 +69,39 @@ export async function withTenant<T>(
   return await client.$transaction(
     async (tx) => {
       await tx.$executeRaw`SELECT set_config(${TENANT_SETTING}, ${tenantId}, true)`;
+      return fn(tx);
+    },
+    {
+      ...(options.maxWait !== undefined ? { maxWait: options.maxWait } : {}),
+      ...(options.timeout !== undefined ? { timeout: options.timeout } : {}),
+      ...(options.isolationLevel !== undefined ? { isolationLevel: options.isolationLevel } : {}),
+    },
+  );
+}
+
+/**
+ * Runs `fn` with PostgreSQL *user* context set, inside one transaction.
+ *
+ * Narrower than it sounds. Setting `app.user_id` unlocks exactly two
+ * SELECT policies — a person's own rows in `tenant_users`, and the tenants
+ * they actively belong to. Everything else stays governed by tenant
+ * context, which this does not set.
+ *
+ * It exists for the one flow that cannot have a tenant yet: authentication
+ * deriving the active tenant from membership (SDD-05 §2). Reaching for it
+ * anywhere else is a sign the call should be using `withTenant` instead.
+ */
+export async function withUser<T>(
+  client: PrismaClient,
+  userId: string,
+  fn: (tx: TenantScopedClient) => Promise<T>,
+  options: WithTenantOptions = {},
+): Promise<T> {
+  assertTenantId(userId);
+
+  return await client.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT set_config(${USER_SETTING}, ${userId}, true)`;
       return fn(tx);
     },
     {

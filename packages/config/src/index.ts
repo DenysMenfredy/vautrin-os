@@ -51,6 +51,18 @@ const environmentSchema = z.object({
   API_GLOBAL_PREFIX: z.string().default('api'),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+
+  /**
+   * Signing key for access tokens (ADR-013).
+   *
+   * No default: a fallback secret is worse than a missing one, because the
+   * application boots and silently signs tokens anyone can forge. 32 bytes
+   * minimum so HS256 is keyed with at least as much entropy as its output.
+   * Generate with `openssl rand -base64 48`.
+   */
+  JWT_SECRET: z
+    .string()
+    .min(32, 'must be at least 32 characters; generate with `openssl rand -base64 48`'),
 });
 
 export type Environment = z.infer<typeof environmentSchema>;
@@ -86,8 +98,24 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
     }
   }
 
+  if (environment.NODE_ENV === 'production' && environment.JWT_SECRET === DEV_JWT_SECRET) {
+    throw new ConfigurationError(
+      'JWT_SECRET is still the development value from .env.example. Access tokens ' +
+        'signed with a published key can be forged by anyone. Generate one with ' +
+        '`openssl rand -base64 48`.',
+    );
+  }
+
   return environment;
 }
+
+/**
+ * The value shipped in .env.example.
+ *
+ * Kept here so production can refuse it. It is not a secret — that is the
+ * entire point: it is published, so it must never sign a real token.
+ */
+export const DEV_JWT_SECRET = 'dev-only-insecure-jwt-secret-do-not-use-in-production-0000';
 
 /** Extracts the username from a connection string without exposing the password. */
 function roleOf(connectionString: string): string | undefined {

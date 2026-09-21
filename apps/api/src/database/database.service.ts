@@ -6,6 +6,7 @@ import {
   type PrismaClient,
   type TenantScopedClient,
   withTenant,
+  withUser,
 } from '@vautrin/database';
 
 import { ENVIRONMENT } from '../config/environment.module.js';
@@ -44,6 +45,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    */
   withTenant<T>(tenantId: string, fn: (tx: TenantScopedClient) => Promise<T>): Promise<T> {
     return withTenant(this.prisma, tenantId, fn);
+  }
+
+  /**
+   * Runs `fn` with PostgreSQL user context set (SDD-05 §2).
+   *
+   * Only for authentication, which must read a person's own memberships
+   * before an active tenant exists. It unlocks two SELECT policies and
+   * nothing else — see the 20260919000600 migration.
+   */
+  withUser<T>(userId: string, fn: (tx: TenantScopedClient) => Promise<T>): Promise<T> {
+    return withUser(this.prisma, userId, fn);
   }
 
   /**

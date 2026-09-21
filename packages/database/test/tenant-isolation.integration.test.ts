@@ -7,7 +7,7 @@ import {
   type PrismaClient,
 } from '../src/client.js';
 import { EMBEDDING_DIMENSIONS } from '../src/config.js';
-import { currentTenantId, withTenant } from '../src/tenant-context.js';
+import { currentTenantId, withTenant, withUser } from '../src/tenant-context.js';
 import { searchKnowledgeChunks, upsertKnowledgeChunk } from '../src/vector.js';
 
 /**
@@ -343,5 +343,90 @@ describe('background job context (SDD-05 §5)', () => {
 
     expect(leads).toHaveLength(1);
     expect(leads[0]?.id).toBe(tenantB.leadId);
+  });
+});
+
+describe('user context (migration 20260919000600)', () => {
+  /**
+   * `app.user_id` unlocks two SELECT policies so authentication can read a
+   * person's own memberships before a tenant exists (SDD-05 §2). These
+   * tests exist because that is a deliberate hole in tenant isolation, and
+   * a hole is only acceptable while it stays exactly the size intended.
+   */
+  let userA = '';
+  let userB = '';
+
+  beforeAll(async () => {
+    const a = await platform.user.create({
+      data: { email: `ctx-a-${Date.now()}@example.test`, status: 'ACTIVE' },
+    });
+    const b = await platform.user.create({
+      data: { email: `ctx-b-${Date.now()}@example.test`, status: 'ACTIVE' },
+    });
+    userA = a.id;
+    userB = b.id;
+
+    await platform.tenantUser.create({
+      data: { tenantId: tenantA.tenantId, userId: userA, role: 'OWNER' },
+    });
+    await platform.tenantUser.create({
+      data: { tenantId: tenantB.tenantId, userId: userB, role: 'OWNER' },
+    });
+  });
+
+  afterAll(async () => {
+    await platform.user.deleteMany({ where: { id: { in: [userA, userB] } } });
+  });
+
+  it('shows a user their own memberships', async () => {
+    const rows = await withUser(app, userA, (tx) => tx.tenantUser.findMany());
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.userId).toBe(userA);
+    expect(rows[0]?.tenantId).toBe(tenantA.tenantId);
+  });
+
+  it("does not show one user another user's memberships", async () => {
+    // The whole point: user context must expose YOUR rows, not everyone's.
+    const rows = await withUser(app, userA, (tx) => tx.tenantUser.findMany());
+
+    expect(rows.some((row) => row.userId === userB)).toBe(false);
+  });
+
+  it('shows only the tenants the user actually belongs to', async () => {
+    const rows = await withUser(app, userA, (tx) => tx.tenant.findMany());
+
+    expect(rows.map((row) => row.id)).toEqual([tenantA.tenantId]);
+  });
+
+  it('grants nothing on other tenant-scoped tables', async () => {
+    // User context must not become a general-purpose bypass: leads,
+    // contacts and the rest still require tenant context.
+    const [leads, contacts, messages] = await withUser(app, userA, async (tx) => [
+      await tx.lead.findMany(),
+      await tx.contact.findMany(),
+      await tx.message.findMany(),
+    ]);
+
+    expect(leads).toHaveLength(0);
+    expect(contacts).toHaveLength(0);
+    expect(messages).toHaveLength(0);
+  });
+
+  it('is SELECT-only: a user cannot grant themselves a membership', async () => {
+    // If this ever succeeds, anyone who can authenticate can join any
+    // tenant. The policy is deliberately FOR SELECT.
+    await expect(
+      withUser(app, userA, (tx) =>
+        tx.tenantUser.create({
+          data: { tenantId: tenantB.tenantId, userId: userA, role: 'OWNER' },
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+
+  it('grants nothing at all when no user context is set', async () => {
+    const rows = await app.tenantUser.findMany();
+    expect(rows).toHaveLength(0);
   });
 });

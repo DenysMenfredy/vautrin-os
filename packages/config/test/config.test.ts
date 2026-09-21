@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { ConfigurationError, loadEnvironment } from '../src/index.js';
+import { ConfigurationError, DEV_JWT_SECRET, loadEnvironment } from '../src/index.js';
 
 const valid = {
   DATABASE_URL: 'postgresql://vautrin_app:pw@localhost:5435/vautrin',
   DATABASE_MIGRATION_URL: 'postgresql://vautrin_migrator:pw@localhost:5435/vautrin',
   REDIS_URL: 'redis://localhost:6379',
+  JWT_SECRET: 'x'.repeat(48),
 };
 
 describe('loadEnvironment', () => {
@@ -61,5 +62,35 @@ describe('loadEnvironment', () => {
 
   it('allows distinct roles in production', () => {
     expect(() => loadEnvironment({ ...valid, NODE_ENV: 'production' })).not.toThrow();
+  });
+});
+
+describe('JWT_SECRET (ADR-013)', () => {
+  it('is required', () => {
+    const { JWT_SECRET: _omitted, ...withoutSecret } = valid;
+    expect(() => loadEnvironment(withoutSecret)).toThrow(/JWT_SECRET/);
+  });
+
+  it('rejects a short secret', () => {
+    // HS256 keyed with less entropy than its output is a weak signature.
+    expect(() => loadEnvironment({ ...valid, JWT_SECRET: 'too-short' })).toThrow(
+      /at least 32 characters/,
+    );
+  });
+
+  it('refuses the published development value in production', () => {
+    // .env.example ships this, so it is public. Signing real tokens with it
+    // means anyone can forge one.
+    expect(() =>
+      loadEnvironment({
+        ...valid,
+        NODE_ENV: 'production',
+        JWT_SECRET: DEV_JWT_SECRET,
+      }),
+    ).toThrow(/development value/);
+  });
+
+  it('allows the development value outside production', () => {
+    expect(() => loadEnvironment({ ...valid, JWT_SECRET: DEV_JWT_SECRET })).not.toThrow();
   });
 });
