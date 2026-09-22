@@ -1,15 +1,29 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpException,
+  HttpStatus,
+  Inject,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Environment } from '@vautrin/config';
 import type { AuthTokensResponse, CurrentSessionResponse } from '@vautrin/contracts';
 import type { Request, Response } from 'express';
-
+import { ENVIRONMENT } from '../config/environment.module.js';
 import { AuthService } from './auth.service.js';
+import { type AuthRateLimitDecision, AuthRateLimitService } from './auth-rate-limit.service.js';
 import {
   type AuthenticatedRequestContext,
   CurrentAuth,
 } from './decorators/current-auth.decorator.js';
 import { Public } from './decorators/public.decorator.js';
 import { LoginDto, RefreshDto, SwitchTenantDto } from './dto/auth.dto.js';
+import { assertTrustedOrigin } from './origin-policy.js';
 
 /** Name of the httpOnly cookie carrying the refresh token. */
 const REFRESH_COOKIE = 'vos_refresh';
@@ -17,7 +31,11 @@ const REFRESH_COOKIE = 'vos_refresh';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly rateLimits: AuthRateLimitService,
+    @Inject(ENVIRONMENT) private readonly environment: Environment,
+  ) {}
 
   @Public()
   @Post('login')
@@ -28,6 +46,11 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthTokensResponse> {
+    assertTrustedOrigin(request, this.environment);
+    enforceRateLimit(
+      response,
+      await this.rateLimits.checkLogin(request.ip ?? 'unknown', dto.email),
+    );
     const tokens = await this.auth.login(dto.email, dto.password, requestContext(request));
     setRefreshCookie(response, tokens.refreshToken);
     return tokens;
@@ -49,7 +72,14 @@ export class AuthController {
   ): Promise<AuthTokensResponse> {
     // Cookie first: a browser always has it, and preferring it means a
     // stale body value cannot override the live session.
-    const presented = readRefreshCookie(request) ?? dto.refreshToken;
+    const cookieToken = readRefreshCookie(request);
+    if (cookieToken !== undefined) assertTrustedOrigin(request, this.environment);
+
+    const presented = cookieToken ?? dto.refreshToken;
+    enforceRateLimit(
+      response,
+      await this.rateLimits.checkRefresh(request.ip ?? 'unknown', presented ?? ''),
+    );
     if (!presented) {
       return this.auth.refresh('', requestContext(request));
     }
@@ -69,7 +99,9 @@ export class AuthController {
   ): Promise<void> {
     // Public so logging out still works with an expired access token —
     // otherwise a user whose session lapsed cannot clear their cookie.
-    await this.auth.logout(readRefreshCookie(request), request.auth?.userId);
+    const refreshToken = readRefreshCookie(request);
+    if (refreshToken !== undefined) assertTrustedOrigin(request, this.environment);
+    await this.auth.logout(refreshToken, request.auth?.userId);
     clearRefreshCookie(response);
   }
 
@@ -85,9 +117,22 @@ export class AuthController {
   switchTenant(
     @CurrentAuth() auth: AuthenticatedRequestContext,
     @Body() dto: SwitchTenantDto,
+    @Req() request: Request,
   ): Promise<{ accessToken: string; expiresIn: number; activeTenantId: string }> {
-    return this.auth.switchTenant(auth.userId, dto.tenantId);
+    const refreshToken = readRefreshCookie(request);
+    if (refreshToken !== undefined) assertTrustedOrigin(request, this.environment);
+    return this.auth.switchTenant(auth.userId, dto.tenantId, refreshToken);
   }
+}
+
+function enforceRateLimit(response: Response, decision: AuthRateLimitDecision): void {
+  if (decision.allowed) return;
+
+  response.setHeader('retry-after', String(decision.retryAfterSeconds));
+  throw new HttpException(
+    'Too many authentication attempts. Try again later.',
+    HttpStatus.TOO_MANY_REQUESTS,
+  );
 }
 
 function requestContext(request: Request): { userAgent?: string; ipAddress?: string } {

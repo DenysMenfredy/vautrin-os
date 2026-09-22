@@ -41,6 +41,8 @@ interface TenantFixture {
   workflowId: string;
   workflowRunId: string;
   documentId: string;
+  serviceId: string;
+  serviceAreaId: string;
 }
 
 async function seedTenant(slug: string, label: string): Promise<TenantFixture> {
@@ -116,6 +118,24 @@ async function seedTenant(slug: string, label: string): Promise<TenantFixture> {
     },
   });
 
+  const service = await platform.service.create({
+    data: {
+      tenantId: tenant.id,
+      key: `kitchen-${label.toLowerCase()}`,
+      name: `${label} Kitchen Remodeling`,
+      active: true,
+    },
+  });
+
+  const serviceArea = await platform.serviceArea.create({
+    data: {
+      tenantId: tenant.id,
+      type: 'POSTAL_CODE',
+      value: label === 'A' ? '10001' : '20001',
+      active: true,
+    },
+  });
+
   await withTenant(platform, tenant.id, (tx) =>
     upsertKnowledgeChunk(tx, {
       tenantId: tenant.id,
@@ -134,6 +154,8 @@ async function seedTenant(slug: string, label: string): Promise<TenantFixture> {
     workflowId: workflow.id,
     workflowRunId: workflowRun.id,
     documentId: document.id,
+    serviceId: service.id,
+    serviceAreaId: serviceArea.id,
   };
 }
 
@@ -213,6 +235,9 @@ describe('SELECT isolation (SDD-05 §6)', () => {
 
     const contacts = await app.contact.findMany();
     expect(contacts).toHaveLength(0);
+
+    expect(await app.service.findMany()).toHaveLength(0);
+    expect(await app.serviceArea.findMany()).toHaveLength(0);
   });
 });
 
@@ -328,6 +353,47 @@ describe('knowledge and vector isolation (SDD-05 §6)', () => {
           chunkIndex: 99,
           content: 'cross-tenant write attempt',
           embedding: embedding(3),
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+  });
+});
+
+describe('business configuration isolation (ADR-014)', () => {
+  it('scopes services and service areas to the active tenant', async () => {
+    const services = await withTenant(app, tenantA.tenantId, (tx) => tx.service.findMany());
+    expect(services.map((service) => service.id)).toEqual([tenantA.serviceId]);
+
+    const areas = await withTenant(app, tenantA.tenantId, (tx) => tx.serviceArea.findMany());
+    expect(areas.map((area) => area.id)).toEqual([tenantA.serviceAreaId]);
+
+    const hiddenService = await withTenant(app, tenantA.tenantId, (tx) =>
+      tx.service.findUnique({ where: { id: tenantB.serviceId } }),
+    );
+    expect(hiddenService).toBeNull();
+  });
+
+  it('rejects forged cross-tenant service configuration', async () => {
+    await expect(
+      withTenant(app, tenantA.tenantId, (tx) =>
+        tx.service.create({
+          data: {
+            tenantId: tenantB.tenantId,
+            key: 'forged',
+            name: 'Forged service',
+          },
+        }),
+      ),
+    ).rejects.toThrow(/row-level security/i);
+
+    await expect(
+      withTenant(app, tenantA.tenantId, (tx) =>
+        tx.serviceArea.create({
+          data: {
+            tenantId: tenantB.tenantId,
+            type: 'CITY',
+            value: 'Forged city',
+          },
         }),
       ),
     ).rejects.toThrow(/row-level security/i);

@@ -1,0 +1,30 @@
+info:
+  name: Refresh — invalid token
+  type: http
+  seq: 5
+  tags:
+    - auth
+    - negative
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/refresh'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "refreshToken": "invalid-bruno-refresh-token"
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        // Ensure no cookie overrides the deliberately invalid body token.
+        await bru.cookies.jar().deleteCookie('{{baseUrl}}/auth/refresh', 'vos_refresh');
+    - type: tests
+      code: |-
+        test('rejects an invalid refresh token', function () {
+          expect(res.status).to.equal(401);
+        });

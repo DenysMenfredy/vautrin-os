@@ -77,6 +77,24 @@ export class AuditService {
     });
   }
 
+  /** Audits an authenticated, tenant-scoped state change. */
+  async recordMutation(input: {
+    tenantId: string;
+    userId: string;
+    action: string;
+    resourceType: string;
+    resourceId: string;
+  }): Promise<void> {
+    await this.write(input.tenantId, {
+      actorType: 'USER',
+      actorId: input.userId,
+      action: input.action,
+      outcome: 'SUCCESS',
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+    });
+  }
+
   private async write(
     tenantId: string,
     data: {
@@ -85,6 +103,7 @@ export class AuditService {
       action: string;
       outcome: 'SUCCESS' | 'FAILURE' | 'DENIED';
       resourceType?: string | null;
+      resourceId?: string | null;
       ipAddress?: string | null;
       userAgent?: string | null;
     },

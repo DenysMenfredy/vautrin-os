@@ -1,0 +1,36 @@
+info:
+  name: Create Service Area
+  type: http
+  seq: 8
+  tags:
+    - business
+    - service-areas
+http:
+  method: POST
+  url: '{{baseUrl}}/business/service-areas'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      {
+        "type": "CITY",
+        "value": "Belém",
+        "configuration": { "country": "BR" }
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('serviceAreaId', res.body.id);
+    - type: tests
+      code: |-
+        test('creates a tenant service area', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.type).to.equal('CITY');
+          expect(res.body.active).to.equal(true);
+        });

@@ -50,6 +50,12 @@ const environmentSchema = z.object({
   API_PORT: z.coerce.number().int().positive().max(65535).default(3000),
   API_GLOBAL_PREFIX: z.string().default('api'),
 
+  /** Exact browser origins allowed to send cookie-authenticated mutations. */
+  TRUSTED_ORIGINS: z.string().default(''),
+
+  /** Number of trusted proxy hops in front of the API. */
+  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 
   /**
@@ -104,6 +110,25 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
         'signed with a published key can be forged by anyone. Generate one with ' +
         '`openssl rand -base64 48`.',
     );
+  }
+
+  const trustedOrigins = environment.TRUSTED_ORIGINS.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+  if (environment.NODE_ENV === 'production' && trustedOrigins.length === 0) {
+    throw new ConfigurationError(
+      'TRUSTED_ORIGINS must contain at least one exact frontend origin in production.',
+    );
+  }
+  for (const origin of trustedOrigins) {
+    try {
+      const parsed = new URL(origin);
+      if (parsed.origin !== origin || parsed.pathname !== '/' || parsed.search || parsed.hash) {
+        throw new Error('not an exact origin');
+      }
+    } catch {
+      throw new ConfigurationError(`TRUSTED_ORIGINS contains an invalid exact origin: ${origin}`);
+    }
   }
 
   return environment;

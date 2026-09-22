@@ -1,0 +1,29 @@
+info:
+  name: Login — invalid payload
+  type: http
+  seq: 2
+  tags:
+    - auth
+    - validation
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/login'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: |-
+      {
+        "email": "not-an-email",
+        "password": "short"
+      }
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('rejects malformed login input at the API boundary', function () {
+          expect(res.status).to.equal(400);
+          expect(res.body.statusCode).to.equal(400);
+          expect(res.body.path).to.include('/auth/login');
+        });

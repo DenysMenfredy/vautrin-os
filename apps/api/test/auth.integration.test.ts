@@ -2,6 +2,7 @@ import 'reflect-metadata';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { hashRefreshToken } from '@vautrin/auth';
 import { createPlatformClient, type PrismaClient } from '@vautrin/database';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -29,6 +30,7 @@ const OUTSIDER = { email: `outsider-${suffix}@example.test`, password: 'third lo
 
 let tenantA = '';
 let tenantB = '';
+let staffUserId = '';
 
 function post(path: string, body: unknown, token?: string) {
   return fetch(`${base}/api${path}`, {
@@ -87,10 +89,19 @@ beforeAll(async () => {
   });
   tenantB = b.tenantId;
 
-  await tenants.addMember({
+  const staffMembership = await tenants.addMember({
     tenantId: tenantA,
     email: STAFF.email,
     password: STAFF.password,
+    role: 'STAFF',
+  });
+  staffUserId = staffMembership.userId;
+
+  // The same user belongs to two tenants so refresh can prove that the
+  // server-side active-tenant preference survives rotation.
+  await tenants.addMember({
+    tenantId: tenantB,
+    email: STAFF.email,
     role: 'STAFF',
   });
 });
@@ -180,7 +191,10 @@ describe('capabilities (ADR-011, SDD-09 §3)', () => {
 
   it('gives staff a strictly smaller set', async () => {
     const staff = await login(STAFF);
-    const body = (await (await get('/auth/me', staff.accessToken)).json()) as {
+    const switched = await post('/auth/tenant', { tenantId: tenantA }, staff.accessToken);
+    expect(switched.status).toBe(200);
+    const switchedBody = (await switched.json()) as { accessToken: string };
+    const body = (await (await get('/auth/me', switchedBody.accessToken)).json()) as {
       role: string;
       capabilities: string[];
     };
@@ -229,6 +243,19 @@ describe('tenant switching (SDD-05 §2)', () => {
     };
     expect(me.activeTenantId).toBe(tenantA);
   });
+
+  it('persists the selected tenant in the refresh session', async () => {
+    const staff = await login(STAFF);
+    expect(staff.activeTenantId).toBeNull();
+
+    const switched = await post('/auth/tenant', { tenantId: tenantA }, staff.accessToken);
+    expect(switched.status).toBe(200);
+
+    const refreshed = await post('/auth/refresh', { refreshToken: staff.refreshToken });
+    expect(refreshed.status).toBe(200);
+    const body = (await refreshed.json()) as { activeTenantId: string };
+    expect(body.activeTenantId).toBe(tenantA);
+  });
 });
 
 describe('refresh token rotation (ADR-013)', () => {
@@ -240,6 +267,22 @@ describe('refresh token rotation (ADR-013)', () => {
     const second = (await response.json()) as { refreshToken: string; accessToken: string };
     expect(second.refreshToken).not.toBe(first.refreshToken);
     expect(second.accessToken).toBeTruthy();
+  });
+
+  it('allows only one concurrent redemption of the same predecessor', async () => {
+    const first = await login(OWNER);
+    const responses = await Promise.all([
+      post('/auth/refresh', { refreshToken: first.refreshToken }),
+      post('/auth/refresh', { refreshToken: first.refreshToken }),
+    ]);
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 401]);
+
+    const stored = await platform.refreshToken.findMany({
+      where: { tokenHash: hashRefreshToken(first.refreshToken) },
+      select: { id: true },
+    });
+    expect(stored).toHaveLength(1);
   });
 
   it('revokes the whole family when a rotated token is replayed', async () => {
@@ -290,5 +333,30 @@ describe('refresh token storage', () => {
       expect(row.token_hash).not.toBe(session.refreshToken);
       expect(row.token_hash).toMatch(/^[0-9a-f]{64}$/);
     }
+  });
+});
+
+describe('membership revocation security use case (ADR-013)', () => {
+  it('revokes the active tenant session and writes an audit record atomically', async () => {
+    const staff = await login(STAFF);
+    const switched = await post('/auth/tenant', { tenantId: tenantA }, staff.accessToken);
+    expect(switched.status).toBe(200);
+
+    await tenants.revokeMembership(tenantA, staffUserId);
+
+    const refresh = await post('/auth/refresh', { refreshToken: staff.refreshToken });
+    expect(refresh.status).toBe(401);
+
+    const membership = await platform.tenantUser.findUnique({
+      where: { tenantId_userId: { tenantId: tenantA, userId: staffUserId } },
+      select: { status: true },
+    });
+    expect(membership?.status).toBe('REVOKED');
+
+    const audit = await platform.auditLog.findFirst({
+      where: { tenantId: tenantA, action: 'tenant.membership.revoked' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(audit?.resourceType).toBe('tenant_membership');
   });
 });

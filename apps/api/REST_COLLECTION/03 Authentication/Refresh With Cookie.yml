@@ -1,0 +1,33 @@
+info:
+  name: Refresh — HttpOnly cookie
+  type: http
+  seq: 5
+  tags:
+    - auth
+    - tokens
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/refresh'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const hasRefreshCookie = await bru.cookies.jar().hasCookie('{{baseUrl}}/auth/refresh', 'vos_refresh');
+        if (!hasRefreshCookie) {
+          bru.runner.skipRequest();
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar('accessToken', res.body.accessToken);
+          bru.setVar('refreshToken', res.body.refreshToken);
+          bru.setVar('activeTenantId', res.body.activeTenantId || '');
+        }
+    - type: tests
+      code: |-
+        test('rotates the HttpOnly cookie refresh token', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.accessToken).to.be.a('string').and.not.empty;
+          expect(res.body.refreshToken).to.be.a('string').and.not.empty;
+          expect(res.body.expiresIn).to.equal(900);
+        });

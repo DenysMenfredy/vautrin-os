@@ -65,7 +65,10 @@ services:
       REDIS_URL: redis://redis:6379
       API_PORT: 3000
       API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
+      TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:?TRUSTED_ORIGINS must be set}
+      TRUST_PROXY: ${TRUST_PROXY:-0}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
     ports:
       - '${API_HOST_PORT:-3000}:3000'
@@ -90,6 +93,7 @@ services:
       DATABASE_URL: *database-url
       REDIS_URL: redis://redis:6379
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
     depends_on:
       postgres:

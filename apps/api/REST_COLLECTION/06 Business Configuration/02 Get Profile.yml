@@ -1,0 +1,22 @@
+info:
+  name: Get Business Profile
+  type: http
+  seq: 2
+  tags:
+    - business
+    - configuration
+http:
+  method: GET
+  url: '{{baseUrl}}/business/profile'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('returns the active tenant business profile', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.displayName).to.be.a('string').and.not.empty;
+          expect(res.body).not.to.have.property('tenantId');
+        });

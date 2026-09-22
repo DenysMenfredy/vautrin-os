@@ -1,0 +1,50 @@
+info:
+  name: Login
+  type: http
+  seq: 1
+  tags:
+    - auth
+    - smoke
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/login'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        bru.setVar('accessToken', '');
+        bru.setVar('refreshToken', '');
+        bru.setVar('activeTenantId', '');
+
+        const email = bru.getEnvVar('email');
+        const password = bru.getEnvVar('password');
+        if (!email || !password) {
+          throw new Error('Set email and password in the selected Bruno environment before login.');
+        }
+
+        // Build a JSON object so passwords with quotes or special characters
+        // are escaped correctly when Bruno serializes the request body.
+        req.setBody({ email, password });
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar('accessToken', res.body.accessToken);
+          bru.setVar('refreshToken', res.body.refreshToken);
+          bru.setVar('activeTenantId', res.body.activeTenantId || '');
+        }
+    - type: tests
+      code: |-
+        test('returns tokens and tenant membership details', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.accessToken).to.be.a('string').and.not.empty;
+          expect(res.body.refreshToken).to.be.a('string').and.not.empty;
+          expect(res.body.expiresIn).to.equal(900);
+          expect(res.body.user.id).to.be.a('string');
+          expect(res.body.memberships).to.be.an('array');
+        });

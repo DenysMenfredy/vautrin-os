@@ -1,0 +1,37 @@
+info:
+  name: Create Location
+  type: http
+  seq: 4
+  tags:
+    - business
+    - locations
+http:
+  method: POST
+  url: '{{baseUrl}}/business/locations'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bruno Test Location",
+        "city": "Belém",
+        "country": "BR",
+        "isPrimary": false
+      }
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('locationId', res.body.id);
+    - type: tests
+      code: |-
+        test('creates a tenant location', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.id).to.be.a('string');
+          expect(res.body.name).to.equal('Bruno Test Location');
+        });

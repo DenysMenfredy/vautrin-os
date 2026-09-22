@@ -1,0 +1,21 @@
+info:
+  name: Current session — invalid token
+  type: http
+  seq: 4
+  tags:
+    - auth
+    - negative
+http:
+  method: GET
+  url: '{{baseUrl}}/auth/me'
+  auth:
+    type: bearer
+    token: invalid-bruno-access-token
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('rejects an invalid access token', function () {
+          expect(res.status).to.equal(401);
+          expect(res.body.message).to.equal('Invalid or expired access token.');
+        });

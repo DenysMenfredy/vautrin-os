@@ -1,0 +1,38 @@
+info:
+  name: Create Service
+  type: http
+  seq: 6
+  tags:
+    - business
+    - services
+http:
+  method: POST
+  url: '{{baseUrl}}/business/services'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({
+          key: `bruno-service-${Date.now()}`,
+          name: 'Bruno Test Service',
+          metadata: { source: 'bruno-smoke-test' }
+        });
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('serviceId', res.body.id);
+    - type: tests
+      code: |-
+        test('creates a tenant service catalog entry', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.name).to.equal('Bruno Test Service');
+          expect(res.body.active).to.equal(true);
+        });

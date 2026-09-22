@@ -5,6 +5,7 @@ import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { CapabilityGuard } from './authz/capability.guard.js';
+import { BusinessModule } from './business/business.module.js';
 import { EnvironmentModule } from './config/environment.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
@@ -24,7 +25,15 @@ import { TenantModule } from './tenant/tenant.module.js';
  * fails open when somebody forgets.
  */
 @Module({
-  imports: [EnvironmentModule, DatabaseModule, AuditModule, AuthModule, TenantModule, HealthModule],
+  imports: [
+    EnvironmentModule,
+    DatabaseModule,
+    AuditModule,
+    AuthModule,
+    TenantModule,
+    BusinessModule,
+    HealthModule,
+  ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: CapabilityGuard },

@@ -15,6 +15,11 @@ async function bootstrap(): Promise<void> {
   const environment = app.get<Environment>(ENVIRONMENT);
   const logger = new Logger('Bootstrap');
 
+  // Configure proxy awareness before any request reaches rate limiting or
+  // audit context. The value is explicit so a spoofed X-Forwarded-For header
+  // is never trusted accidentally (F-05 / SDD-09).
+  app.getHttpAdapter().getInstance().set('trust proxy', environment.TRUST_PROXY);
+
   // Release the logs buffered during module initialisation.
   app.flushLogs();
 

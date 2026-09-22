@@ -23,6 +23,7 @@
     },
     "test:integration": {
       "dependsOn": ["^build", "generate"],
+      "passThroughEnv": ["JWT_SECRET"],
       "cache": false
     },
     "generate": {

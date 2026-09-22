@@ -99,3 +99,17 @@ to detect reuse.
 ### Long-lived JWT only
 
 Rejected: no revocation path at all.
+
+## V0.2 Amendment
+
+### Atomic rotation
+
+Rotation is a compare-and-set operation, not a read-then-write operation. Exactly one concurrent redemption of a live token may claim it. A second redemption is treated according to the reuse-detection policy.
+
+### Active tenant continuity
+
+A refresh session stores nullable `active_tenant_id`. Tenant switching re-verifies membership and updates the server-side session/family state. Successor refresh tokens inherit the validated active tenant. Refresh must revalidate that the membership remains active before issuing a tenant-scoped access token.
+
+### Revocation semantics
+
+Membership revocation must revoke relevant refresh sessions/families in the same application-level security operation. Access JWTs retain the documented short stale window unless a route explicitly performs live membership validation.

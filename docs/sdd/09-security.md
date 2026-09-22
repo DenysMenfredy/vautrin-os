@@ -130,3 +130,15 @@ Audit state-changing actions involving:
 - workflow activation;
 - customer/lead mutations;
 - high-impact operations.
+
+## V0.2 Addendum - Authentication session requirements
+
+Authentication uses short-lived JWT access tokens plus rotating opaque refresh tokens persisted as hashes in PostgreSQL.
+
+Additional requirements:
+- refresh-token consumption MUST be atomic under concurrent redemption;
+- the server-side refresh session MUST preserve the selected active tenant for multi-tenant users, with membership revalidation;
+- membership revocation MUST invalidate relevant refresh sessions as part of the security use case;
+- login and refresh endpoints MUST have abuse/rate controls before production;
+- production deployment MUST define trusted proxy, trusted origin, and CSRF behavior for cookie-authenticated endpoints;
+- refresh tokens remain HttpOnly and Secure in production.

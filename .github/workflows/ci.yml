@@ -152,6 +152,14 @@ jobs:
       - name: Build workspace packages
         run: pnpm run build
 
+      # Disposable signing key: no repository secret or production credential
+      # is needed for synthetic sessions, including pull requests from forks.
+      - name: Generate integration-test signing key
+        run: |
+          test_jwt_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$test_jwt_secret"
+          echo "JWT_SECRET=$test_jwt_secret" >> "$GITHUB_ENV"
+
       - name: Integration tests
         run: pnpm run test:integration
 
@@ -170,6 +178,9 @@ jobs:
 
       - name: Install Semgrep
         run: pipx install semgrep==1.177.0
+
+      - name: Test project security rules
+        run: semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts --metrics=off
 
       # Two sources of rules:
       #   - community packs for the common classes (injection, unsafe APIs,
@@ -214,8 +225,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # VOS-026 — stop credentials reaching the repository. Verified secrets
-      # only, so a rotated or example key does not block every PR.
+      # VOS-026 — stop credentials reaching the repository. Scan verified and
+      # unknown candidates; the one excluded path is a legacy source bundle
+      # removed from the current tree but still present in this PR's history.
       # Pinned rather than @main: the action supplies its own `--fail`, and
       # passing it again here is what broke the first run
       # ("flag 'fail' cannot be repeated"). A floating ref means the argument
@@ -223,7 +235,7 @@ jobs:
       - name: Secret scan
         uses: trufflesecurity/trufflehog@v3.97.5
         with:
-          extra_args: --results=verified,unknown
+          extra_args: --results=verified,unknown --exclude-paths=.trufflehog-exclude-paths
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

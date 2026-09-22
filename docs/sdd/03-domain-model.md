@@ -78,6 +78,8 @@ Tenant
  ├── TenantUser ── User
  ├── BusinessProfile
  ├── Location
+ ├── Service
+ ├── ServiceArea
  ├── Contact
  │    └── Lead
  │         ├── Conversation
@@ -130,3 +132,11 @@ Templates provide:
 - dashboard configuration.
 
 Templates must not fork the core domain model.
+
+## V0.2 Addendum - Authentication session entity
+
+Add `RefreshToken` as a global identity/session entity. It is not tenant-scoped because it authenticates a user before an active tenant is necessarily selected.
+
+Required fields include `user_id`, token digest, family identifier, replacement/revocation metadata, expiry, diagnostics, and `active_tenant_id` (nullable). `active_tenant_id` is a session preference and MUST be revalidated against active membership before use.
+
+Add tenant-scoped `Service` and `ServiceArea` entities before VOS-042/VOS-043. Vertical templates seed these records; they do not fork the core schema.

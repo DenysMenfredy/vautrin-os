@@ -1,0 +1,32 @@
+info:
+  name: Logout
+  type: http
+  seq: 1
+  tags:
+    - auth
+    - session
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/logout'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const refreshCookie = await bru.cookies.jar().getCookie('{{baseUrl}}/auth/logout', 'vos_refresh');
+        if (!refreshCookie) {
+          bru.runner.skipRequest();
+        } else {
+          bru.setVar('revokedRefreshToken', refreshCookie.value);
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 204) {
+          bru.setVar('accessToken', '');
+          bru.setVar('refreshToken', '');
+          bru.setVar('activeTenantId', '');
+        }
+    - type: tests
+      code: |-
+        test('revokes the cookie session and returns no content', function () {
+          expect(res.status).to.equal(204);
+        });

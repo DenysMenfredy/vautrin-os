@@ -37,8 +37,10 @@ rules:
       - pattern: new URL(...)
 
   # SDD-05 §3 / ADR-005: tenant-scoped reads must carry tenant context.
-  # `.unscoped` bypasses RLS filtering by design and is only correct for
-  # health probes and pre-authentication lookups.
+  # `.unscoped` supplies no tenant context; it does NOT bypass RLS.
+  # Reviewed global identity/session queries (SDD-04 §3, ADR-013) and tenant
+  # bootstrap use rule-specific, call-site exceptions with a written reason.
+  # Do not exclude entire auth/tenant files: new unscoped queries must fail.
   - id: vautrin-unscoped-database-access
     languages: [typescript]
     severity: WARNING

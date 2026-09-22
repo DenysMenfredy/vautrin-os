@@ -6,8 +6,8 @@
 //   ADR-003 (pooled multi-tenancy)  ADR-004 (PostgreSQL + pgvector)
 //   ADR-005 (RLS)
 //
-// Table set is exactly the list in SDD-04 §3. Do not add tables here without
-// updating SDD-04 first (README "Source of truth").
+// Table set follows SDD-04 §3 and its V0.2 approved schema addendum. Do not
+// add tables here without updating SDD-04 first (README "Source of truth").
 //
 // Conventions
 //   - Models are PascalCase, tables and columns are snake_case via @@map/@map.
@@ -328,6 +328,16 @@ enum CustomFieldType {
   @@map("custom_field_type")
 }
 
+/// ADR-014 — service area matching strategy.
+enum ServiceAreaType {
+  CITY
+  POSTAL_CODE
+  RADIUS
+  REGION
+
+  @@map("service_area_type")
+}
+
 // ---------------------------------------------------------------------------
 // Tenancy and identity
 // ---------------------------------------------------------------------------
@@ -369,6 +379,9 @@ model Tenant {
   auditLogs              AuditLog[]
   customFieldDefinitions CustomFieldDefinition[]
   customFieldValues      CustomFieldValue[]
+  services               Service[]
+  serviceAreas           ServiceArea[]
+  activeRefreshTokens    RefreshToken[] @relation("RefreshTokenActiveTenant")
 
   @@index([status])
   @@map("tenants")
@@ -447,9 +460,13 @@ model RefreshToken {
   userAgent String? @map("user_agent")
   ipAddress String? @map("ip_address") @db.Inet
 
+  /// Session preference, revalidated against active membership on refresh.
+  activeTenantId String? @map("active_tenant_id") @db.Uuid
+
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeTenant Tenant?     @relation("RefreshTokenActiveTenant", fields: [activeTenantId], references: [id], onDelete: SetNull)
   replacedBy RefreshToken? @relation("TokenRotation", fields: [replacedById], references: [id], onDelete: SetNull)
   replaces   RefreshToken? @relation("TokenRotation")
 
@@ -458,12 +475,50 @@ model RefreshToken {
   @@index([familyId])
   /// Expired-token cleanup.
   @@index([expiresAt])
+  @@index([activeTenantId, revokedAt])
   @@map("refresh_tokens")
 }
 
 // ---------------------------------------------------------------------------
 // Business configuration
 // ---------------------------------------------------------------------------
+
+/// ADR-014 — tenant-owned service catalog entry.
+model Service {
+  id          String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId    String   @map("tenant_id") @db.Uuid
+  key         String
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  metadata    Json     @default("{}")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, active])
+  @@map("services")
+}
+
+/// ADR-014 — tenant-owned service coverage rule.
+model ServiceArea {
+  id            String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId      String         @map("tenant_id") @db.Uuid
+  type          ServiceAreaType
+  value         String
+  configuration Json           @default("{}")
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, type, active])
+  @@index([tenantId, value])
+  @@map("service_areas")
+}
 
 /// FR-003. Genuinely schema-flexible settings are JSONB (SDD-04 §7); stable
 /// relational concepts such as locations stay in their own tables.
@@ -588,7 +643,7 @@ model Lead {
   contactId      String     @map("contact_id") @db.Uuid
   status         LeadStatus @default(NEW)
   sourceId       String?    @map("source_id") @db.Uuid
-  /// Requested service. Free text until the service catalog lands (VOS-042).
+  /// Requested-service snapshot; catalog linking belongs to the CRM slice (VOS-051).
   service        String?
   assignedUserId String?    @map("assigned_user_id") @db.Uuid
   title          String?

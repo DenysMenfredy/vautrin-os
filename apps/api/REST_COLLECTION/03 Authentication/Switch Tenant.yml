@@ -1,0 +1,43 @@
+info:
+  name: Switch Tenant
+  type: http
+  seq: 3
+  tags:
+    - auth
+    - tenant
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/tenant'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const tenantId = bru.getEnvVar('tenantId') || bru.getVar('activeTenantId');
+        if (!tenantId) {
+          bru.runner.skipRequest();
+        } else {
+          req.setBody({ tenantId });
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar('accessToken', res.body.accessToken);
+          bru.setVar('activeTenantId', res.body.activeTenantId);
+        }
+    - type: tests
+      code: |-
+        test('returns a new access token for the selected membership', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.accessToken).to.be.a('string').and.not.empty;
+          expect(res.body.expiresIn).to.equal(900);
+          expect(res.body.activeTenantId).to.be.a('string').and.not.empty;
+        });

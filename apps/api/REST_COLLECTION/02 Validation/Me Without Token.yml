@@ -1,0 +1,18 @@
+info:
+  name: Current session — no token
+  type: http
+  seq: 3
+  tags:
+    - auth
+    - negative
+http:
+  method: GET
+  url: '{{baseUrl}}/auth/me'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('requires an access token', function () {
+          expect(res.status).to.equal(401);
+          expect(res.body.message).to.equal('Missing access token.');
+        });

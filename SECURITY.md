@@ -22,6 +22,28 @@ The integration job additionally asserts that the runtime database role holds
 neither `SUPERUSER` nor `BYPASSRLS`. Without that, every tenant-isolation test
 would pass vacuously.
 
+### CI authentication and scan exceptions
+
+The integration job generates a new random JWT signing key for each run,
+masks it in the Actions log, and supplies it through `GITHUB_ENV`.
+`test:integration.passThroughEnv` in `turbo.json` forwards `JWT_SECRET` to
+the uncached test processes. CI needs no repository/production signing
+secret, and the key is not added to build-task environments.
+
+The unscoped-access rule remains blocking. Reviewed call sites use
+`nosemgrep: semgrep.vautrin-unscoped-database-access` with an adjacent reason:
+global user and refresh-token operations follow SDD-04 §3 / ADR-013, while
+tenant bootstrap establishes transaction-local tenant context before tenant
+writes. These exceptions do not bypass PostgreSQL RLS and do not exclude
+the containing files or other security rules. New unscoped accesses still
+require review. See [Semgrep's scoped annotation documentation](https://docs.semgrep.dev/ignoring-files-folders-code#ignore-code-through-nosemgrep).
+
+CI runs `semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts
+--metrics=off` before scanning application code. Explicit paths ensure that
+the hidden rules directory is tested, not silently skipped. The fixtures
+verify that unreviewed global/tenant queries and unsafe
+proxy paths remain detectable, while tenant-scoped queries pass.
+
 ## CodeQL is not running
 
 CodeQL requires GitHub Code Security (formerly part of GitHub Advanced

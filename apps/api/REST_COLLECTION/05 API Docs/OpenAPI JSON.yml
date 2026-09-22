@@ -1,0 +1,18 @@
+info:
+  name: OpenAPI JSON
+  type: http
+  seq: 2
+  tags:
+    - docs
+http:
+  method: GET
+  url: '{{baseUrl}}/docs-json'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('serves an OpenAPI document outside production', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.openapi).to.be.a('string');
+          expect(res.body.paths).to.be.an('object');
+        });
