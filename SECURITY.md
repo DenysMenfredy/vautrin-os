@@ -7,7 +7,7 @@ public issue.
 
 ## Automated checks
 
-Every pull request runs (`.github/workflows/ci.yml`):
+Every pull request runs the main CI workflow and the dedicated Semgrep workflow:
 
 | Check | What it catches |
 |---|---|
@@ -15,8 +15,8 @@ Every pull request runs (`.github/workflows/ci.yml`):
 | `pnpm audit` | Known CVEs in the dependency tree; gated at **high** |
 | Non-root assertion | A Dockerfile that lost its `USER node` |
 | RLS coverage | A tenant-scoped table shipped without an RLS policy |
-| Semgrep (`sast` job) | Community packs (injection, unsafe APIs, OWASP Top 10) plus `.semgrep/vautrin.yml`, project rules encoding findings that actually occurred here |
-| CodeQL (`codeql.yml`) | **Currently skipped** — see below |
+| Semgrep (`semgrep.yml`) | Runs on every pull request and branch push; community packs (injection, unsafe APIs, OWASP Top 10) plus `.semgrep/vautrin.yml` project rules |
+| Semgrep rules tests | Project-specific security rules are tested before the source scan |
 
 The integration job additionally asserts that the runtime database role holds
 neither `SUPERUSER` nor `BYPASSRLS`. Without that, every tenant-isolation test
@@ -44,32 +44,26 @@ the hidden rules directory is tested, not silently skipped. The fixtures
 verify that unreviewed global/tenant queries and unsafe
 proxy paths remain detectable, while tenant-scoped queries pass.
 
-## CodeQL is not running
+## Semgrep CI coverage and limitations
 
-CodeQL requires GitHub Code Security (formerly part of GitHub Advanced
-Security) on a **private** repository. That is a paid add-on and is not
-available on a free personal account, so there is no setting to enable —
-the repository has no code-scanning feature at all, and the API answers:
+`.github/workflows/semgrep.yml` runs Semgrep Community Edition on every pull
+request and branch push, plus manual `workflow_dispatch` runs. The workflow
+installs a pinned CLI, tests the project rules, then scans the source tree. It
+uses no repository secret or Semgrep account token, which keeps the baseline
+available to private repositories and fork pull requests. See Semgrep's
+[Community Edition CI configuration](https://semgrep.dev/docs/semgrep-ci/sample-ci-configs).
 
-```
-403 Code scanning is not enabled for this repository.
-```
+Findings fail the GitHub Actions job via `--error`. This tokenless CLI setup
+reports in the Actions log but does not upload results to the Semgrep App
+dashboard or GitHub's Security tab. Semgrep App integrations and their managed
+findings require a `SEMGREP_APP_TOKEN`; those are intentionally not a
+prerequisite for this repository's CI gate. See the [Semgrep GitHub CI
+documentation](https://semgrep.dev/docs/semgrep-ci/overview).
 
-The workflow is therefore conditioned on `github.event.repository.private ==
-false`. It is kept rather than deleted so it starts working by itself if the
-repository is made public or Code Security is purchased.
-
-**What that costs us.** Semgrep's community rules were checked against the
-path-traversal bug found in the `/api` proxy on 2026-09-19 and did **not**
-detect it. Interprocedural taint analysis of that quality is the thing
-CodeQL provides and Semgrep's free rules do not. The gap is partially closed
-by writing project-specific rules — `vautrin-nitro-proxy-tainted-path` was
-written from that finding and is verified to catch the vulnerable code and
-pass the fixed code — but that is reactive: it encodes bugs already found
-rather than discovering new ones.
-
-Treat manual review of request-controlled data reaching a sink as a
-first-class review responsibility until CodeQL can run.
+The scanner combines `.semgrep/vautrin.yml` with the TypeScript,
+security-audit, and OWASP Top 10 community packs. Static analysis is not a
+substitute for review: in particular, review request-controlled data flows to
+sensitive sinks and keep tenant-isolation tests in the integration pipeline.
 
 ## Controls in place
 
