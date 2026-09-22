@@ -1,0 +1,23 @@
+info:
+  name: Deactivate Service
+  type: http
+  seq: 12
+  tags:
+    - business
+    - services
+http:
+  method: DELETE
+  url: '{{baseUrl}}/business/services/{{serviceId}}'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('serviceId')) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test('deactivates the tenant service', function () {
+          expect(res.status).to.equal(204);
+        });

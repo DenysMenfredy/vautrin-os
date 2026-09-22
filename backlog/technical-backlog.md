@@ -1,4 +1,4 @@
-# Vautrin OS — Technical Backlog V0.1
+# Vautrin OS — Technical Backlog v0.2
 
 ## Backlog rules
 
@@ -65,10 +65,11 @@ Install repository engineering contract.
 PostgreSQL + pgvector + Redis.
 
 ### VOS-011 [P0] Database package
-**Status:** DONE — packages/database — Prisma schema (26 tables per SDD-04 §3), 4 migrations, tenant-scoped client.
+**Status:** DONE — Prisma models, versioned migrations, generated client, and tenant-scoped database client. SDD-04 is the schema inventory; migration counts are intentionally not completion criteria.
 Prisma configuration, migrations, client.
 
 ### VOS-012 [P0] Redis/BullMQ package
+**Status:** IN_PROGRESS — API/worker queue configuration and four queue registrations exist; shared package acceptance and processors remain.
 Shared queue configuration.
 
 ### VOS-013 [P1] Local email/mock provider
@@ -79,7 +80,7 @@ Mailpit or equivalent for development.
 ## EPIC E2 — CI/CD
 
 ### VOS-020 [P0] GitHub Actions PR pipeline
-**Status:** DONE — .github/workflows/ci.yml `quality` job: lint (Biome + ESLint), format check, typecheck, unit tests, build.
+**Status:** DONE — `.github/workflows/ci.yml` runs quality, integration, and security checks on PRs and `main`; `.github/workflows/semgrep.yml` scans PRs and all branch pushes.
 Lint, typecheck, unit tests, build.
 
 ### VOS-021 [P0] Integration-test service containers
@@ -87,6 +88,7 @@ Lint, typecheck, unit tests, build.
 PostgreSQL + Redis.
 
 ### VOS-022 [P1] E2E pipeline
+**Status:** TODO — authentication and feature integration tests exist; the product critical path has no E2E pipeline yet.
 Run critical web/API tests.
 
 ### VOS-023 [P1] Container builds
@@ -100,7 +102,7 @@ Automated deployment after main.
 Approval + smoke tests + rollback documentation.
 
 ### VOS-026 [P0] Secret scanning
-**Status:** DONE — ci.yml `security` job: TruffleHog secret scan over full history, `pnpm audit` gated at high, non-root Dockerfile assertion, and scripts/check-rls-coverage.mjs. Plus .github/workflows/codeql.yml (security-extended).
+**Status:** DONE — CI runs TruffleHog over history, dependency auditing, non-root Dockerfile assertions, and RLS coverage checks. The separate Semgrep Community Edition workflow is the static-analysis gate; CodeQL is not used.
 Prevent accidental credential commits.
 
 ---
@@ -128,11 +130,11 @@ Resolve active tenant from authenticated request.
 Owner/admin/manager/staff/read-only.
 
 ### VOS-035 [P0] RLS framework
-**Status:** DONE — ENABLE + FORCE RLS on all 25 tenant-scoped tables, app.current_tenant_id() helper, drift guard fails the migration if a tenant_id table is left unprotected.
+**Status:** DONE — ENABLE + FORCE RLS on tenant-scoped tables, `app.current_tenant_id()` helper, and migration/CI drift checks for tenant tables without policies.
 Enable and test PostgreSQL RLS.
 
 ### VOS-036 [P0] Cross-tenant security tests
-**Status:** DONE — packages/database/test/tenant-isolation.integration.test.ts — SELECT/INSERT/UPDATE/DELETE, conversation, workflow, vector, and background-job isolation, run as the non-privileged runtime role.
+**Status:** DONE — integration coverage for SELECT/INSERT/UPDATE/DELETE, business configuration, conversations, workflows, vectors, and background jobs runs with the non-privileged runtime role.
 Read/write/delete isolation.
 
 ---
@@ -152,20 +154,20 @@ Read/write/delete isolation.
 **Status:** DONE — tenant-scoped service-area CRUD for the ADR-014 types, configuration JSON, filtering/pagination, and deactivation.
 
 ### VOS-044 [P1] Business hours
-Weekly availability rules.
+**Status:** DONE — exposed the existing tenant `business_hours` JSON configuration through the business profile API. The SDD specifies weekly availability rules but not their JSON wire shape, so no undocumented schedule format was imposed.
 
 ### VOS-045 [P1] Custom field definitions
-Generic vertical-specific fields.
+**Status:** DONE — tenant-scoped, paginated definitions use the existing entity/type enums, options, required/active flags, and display order; definition changes are audited.
 
 ### VOS-046 [P1] Custom field values
-Lead/contact/estimate values.
+**Status:** DONE — tenant-scoped values can be listed, set, and removed for contacts, leads, and estimates; writes verify the target entity and definition, validate the stored value against its definition, use the matching entity capability, and are audited.
 
 ---
 
 ## EPIC E5 — CRM
 
 ### VOS-050 [P1] Contacts
-CRUD + search + pagination.
+**Status:** DONE — tenant-scoped contact CRUD, case-insensitive search, cursor pagination, capability checks, audited mutations, soft archive, and tenant-isolation integration coverage.
 
 ### VOS-051 [P1] Leads
 CRUD + pipeline.
@@ -400,13 +402,24 @@ Ensure idempotent external action.
   to uncached Turbo integration tasks, without a production/repository secret.
 - Keep Semgrep blocking, with documented call-site exceptions for the 11
   reviewed global identity/session and tenant-bootstrap accesses.
-- Add configuration and security-rule regressions; leave the existing
-  private-repository CodeQL skip unchanged.
+- Add configuration and security-rule regressions. At this snapshot, the
+  private-repository CodeQL skip remained in place; the 2026-09-22 follow-up
+  replaced it with the standalone Semgrep workflow.
 - Local validation: lint/typecheck/build, 70 unit tests, and 52 integration
   tests pass. Integration tests also pass from a source snapshot without
   `.env`, using the workflow-generated key. Full Semgrep scan has zero
   findings; both project-rule regression suites pass. GitHub confirmation
   requires committing/pushing these changes.
+
+### 2026-09-22 — v0.2 implementation drift reconciliation
+
+- Align the README, security guide, backlog, and app guides with implemented
+  authentication, rate limiting, queue infrastructure, migrations, and API
+  coverage.
+- Replace the private-repository CodeQL workflow with tokenless Semgrep CI on
+  pull requests and all branch pushes.
+- Complete the Bruno business-configuration collection for each implemented
+  profile, location, service, and service-area operation.
 
 ### 2026-09-19 — first security pass (CI introduction)
 
@@ -475,9 +488,9 @@ P2/P3 candidates:
 ## Status corrections
 
 - VOS-121 Audit log: **IN_PROGRESS**. Authentication/authorization coverage exists; remaining mutation/tool/integration/workflow audit surfaces are pending.
-- VOS-012 Redis/BullMQ package: implementation exists in API/worker queue infrastructure, but completion should be marked DONE only after its package-level acceptance criteria are explicitly verified.
-- VOS-022 E2E pipeline: authentication integration/E2E coverage exists, but the product critical-path E2E pipeline remains TODO.
+- VOS-012 Redis/BullMQ package: queue registration is implemented in the worker; shared package acceptance and processors remain.
+- VOS-022 E2E pipeline: authentication and feature integration coverage exists, but the product critical-path E2E pipeline remains TODO.
 
 ## Next milestone order
 
-Do not begin the AI/workflow product layer until VOS-037, VOS-038, VOS-039 and VOS-014 are complete. Then execute E4 Business Configuration followed by E5 CRM.
+Do not begin the AI/workflow product layer until VOS-037, VOS-038, VOS-039 and VOS-014 are complete. E4 Business Configuration and VOS-050 Contacts are complete; proceed with E5 CRM, beginning with VOS-051 Leads.

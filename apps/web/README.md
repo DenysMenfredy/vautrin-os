@@ -36,8 +36,8 @@ It does not call the API host directly. That avoids three things at once:
 - CORS configuration on every API deployment;
 - the API needing to be publicly reachable rather than only reachable by the
   frontend;
-- cross-site cookie handling (`SameSite=None`, credentials) once session auth
-  lands (VOS-030).
+- cross-site cookie handling (`SameSite=None`, credentials) for refresh
+  sessions (VOS-030).
 
 Two runtime values, both overridable through `NUXT_*` env vars so one built
 image works across environments (SDD-12 §9):
@@ -93,6 +93,7 @@ Two gotchas worth knowing before adding tests:
 
 ## Not here yet
 
-Everything beyond the status page. No authentication (VOS-030), no layouts,
-no design system, no CRM views (VOS-055), no inbox (VOS-065). The page exists
-to prove the web → API → database path works end to end.
+The web app still has only the status page: it has no login/session UI, layouts,
+design system, CRM views (VOS-055), or inbox (VOS-065). API authentication is
+implemented (VOS-030). The page exists to prove the web → API → database path
+works end to end.

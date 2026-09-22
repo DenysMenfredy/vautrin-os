@@ -1,4 +1,4 @@
-# Vautrin OS Documentation — v0.1
+# Vautrin OS — Architecture and Implementation Baseline v0.2
 
 Vautrin OS is a multi-tenant SaaS platform for local businesses, initially
 verticalized for remodeling and home-service businesses in the United States.
@@ -6,6 +6,17 @@ verticalized for remodeling and home-service businesses in the United States.
 This documentation package is the architectural baseline for MVP development.
 It is intentionally written in English so it can be consumed directly by
 human developers and AI coding agents.
+
+## Current implementation
+
+The repository has the monorepo, database, tenant-isolation, authentication,
+and CI foundations in place. Business Configuration includes the profile
+(including business-hours configuration), locations, services, service areas,
+custom field definitions, and custom field values. The next product milestone
+is CRM; tenant-scoped Contacts CRUD, search, and pagination are implemented,
+with Leads next. See
+[`backlog/technical-backlog.md`](backlog/technical-backlog.md) for task status
+and acceptance criteria.
 
 ## Product principle
 
@@ -66,6 +77,7 @@ The architecture is vertical-agnostic even though the first production template 
 - `docs/adr/011-authentication-rbac.md`
 - `docs/adr/012-observability.md`
 - `docs/adr/013-session-and-token-strategy.md`
+- `docs/adr/014-service-and-service-area-modeling.md`
 
 ### Engineering agent guidance
 - `AGENTS.md`
@@ -80,7 +92,7 @@ Create or update an ADR, then update the affected SDD and backlog.
 
 ## Current scope boundary
 
-V0.1 explicitly excludes:
+The current MVP scope excludes:
 - full accounting;
 - payments processing;
 - full project management;

@@ -1,0 +1,33 @@
+info:
+  name: Update Service Area
+  type: http
+  seq: 16
+  tags:
+    - business
+    - service-areas
+http:
+  method: PATCH
+  url: '{{baseUrl}}/business/service-areas/{{serviceAreaId}}'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      {
+        "value": "Belém and Ananindeua"
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('serviceAreaId')) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test('updates a tenant service area', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.value).to.equal('Belém and Ananindeua');
+        });

@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
 import { CapabilityGuard } from './authz/capability.guard.js';
 import { BusinessModule } from './business/business.module.js';
 import { EnvironmentModule } from './config/environment.module.js';
+import { ContactsModule } from './contacts/contacts.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
@@ -32,6 +33,7 @@ import { TenantModule } from './tenant/tenant.module.js';
     AuthModule,
     TenantModule,
     BusinessModule,
+    ContactsModule,
     HealthModule,
   ],
   providers: [
