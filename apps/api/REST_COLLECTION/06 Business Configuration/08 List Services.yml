@@ -1,13 +1,13 @@
 info:
-  name: List Service Areas
+  name: List Services
   type: http
-  seq: 7
+  seq: 8
   tags:
     - business
-    - service-areas
+    - services
 http:
   method: GET
-  url: '{{baseUrl}}/business/service-areas?limit=50&active=true'
+  url: '{{baseUrl}}/business/services?limit=50&active=true'
   auth:
     type: bearer
     token: '{{accessToken}}'
@@ -15,7 +15,7 @@ runtime:
   scripts:
     - type: tests
       code: |-
-        test('returns active tenant service areas', function () {
+        test('returns active tenant services', function () {
           expect(res.status).to.equal(200);
           expect(res.body.items).to.be.an('array');
         });

@@ -67,11 +67,20 @@ sensitive sinks and keep tenant-isolation tests in the integration pipeline.
 
 ## Controls in place
 
-**Tenant isolation** — PostgreSQL RLS with `ENABLE` + `FORCE` on all 25
+**Tenant isolation** — PostgreSQL RLS with `ENABLE` + `FORCE` on
 tenant-scoped tables, enforced against a runtime role that is neither the
-table owner nor `BYPASSRLS` (ADR-005). Verified by 16 integration tests
-covering SELECT/INSERT/UPDATE/DELETE, conversations, workflows, vector search
-and background jobs.
+table owner nor `BYPASSRLS` (ADR-005). A migration guard, CI schema check, and
+integration tests cover tenant access, business configuration, conversations,
+workflows, vector search, and background jobs.
+
+**Authentication and authorization** — short-lived JWT access tokens,
+rotating refresh tokens stored as hashes, atomic rotation, family reuse
+detection, active-tenant revalidation, and capability checks on protected
+routes (ADR-011, ADR-013).
+
+**Credential abuse controls** — Redis-backed expiring counters limit login
+and refresh attempts by IP and account/token. The counters fail closed when
+Redis is unavailable and do not permanently lock accounts.
 
 **Least privilege** — two database roles: `vautrin_migrator` owns the schema
 and runs migrations; `vautrin_app` serves traffic and holds DML only.
@@ -100,9 +109,9 @@ These are tracked, not forgotten.
 
 | Gap | Risk | Tracked as |
 |---|---|---|
-| No authentication or RBAC | Every endpoint is unauthenticated. Only health exists today. | VOS-030, VOS-034 |
-| No rate limiting | Abuse and brute force once real endpoints exist | Post-MVP |
-| No structured logging or audit writes | Limited forensics | VOS-120, VOS-121 |
+| No structured request/job logging | Limited correlation and operational context | VOS-120 |
+| Partial audit coverage | Business configuration is audited; customer, workflow, AI, and integration mutations remain | VOS-121 |
+| No full product critical-path E2E | CRM through estimate follow-up is not implemented | VOS-022, VOS-140 |
 | CSP allows `'unsafe-inline'` for scripts | Nuxt's hydration payload is an inline script; weakens XSS defence | Before real customer data |
 | Compose files carry a default local password | A production deploy of these files would use a known password | VOS-024, VOS-025 |
 | `vautrin_migrator` is `SUPERUSER` locally | Needed for `CREATE EXTENSION vector` in dev and CI | Local/CI only |

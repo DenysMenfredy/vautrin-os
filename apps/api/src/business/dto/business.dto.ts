@@ -1,21 +1,33 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type {
   BusinessListRequest,
+  CreateCustomFieldDefinitionRequest,
   CreateLocationRequest,
   CreateServiceAreaRequest,
   CreateServiceRequest,
+  CustomFieldEntityType,
+  CustomFieldType,
+  CustomFieldValue,
+  ListCustomFieldDefinitionsRequest,
   PageRequest,
   ServiceAreaType,
+  SetCustomFieldValueRequest,
   UpdateBusinessProfileRequest,
+  UpdateCustomFieldDefinitionRequest,
   UpdateLocationRequest,
   UpdateServiceAreaRequest,
   UpdateServiceRequest,
 } from '@vautrin/contracts';
+import { CUSTOM_FIELD_ENTITY_TYPES, CUSTOM_FIELD_TYPES } from '@vautrin/contracts';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayUnique,
+  IsArray,
   IsBoolean,
+  IsDefined,
   IsEmail,
   IsEnum,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
@@ -86,6 +98,109 @@ export class UpdateBusinessProfileDto implements UpdateBusinessProfileRequest {
   @IsString()
   @Matches(/^[A-Za-z]{3}$/)
   declare currency?: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsObject()
+  declare businessHours?: Readonly<Record<string, unknown>>;
+}
+
+export class CreateCustomFieldDefinitionDto implements CreateCustomFieldDefinitionRequest {
+  @ApiProperty({ enum: CUSTOM_FIELD_ENTITY_TYPES })
+  @IsIn(CUSTOM_FIELD_ENTITY_TYPES)
+  declare entityType: CustomFieldEntityType;
+
+  @ApiProperty({ example: 'project-budget', maxLength: 80 })
+  @IsString()
+  @Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)
+  declare key: string;
+
+  @ApiProperty({ maxLength: 200 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  declare label: string;
+
+  @ApiProperty({ enum: CUSTOM_FIELD_TYPES })
+  @IsIn(CUSTOM_FIELD_TYPES)
+  declare fieldType: CustomFieldType;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  declare options?: readonly string[];
+
+  @ApiPropertyOptional({ default: false })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  declare isRequired?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  declare isActive?: boolean;
+
+  @ApiPropertyOptional({ default: 0 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  declare displayOrder?: number;
+}
+
+export class UpdateCustomFieldDefinitionDto implements UpdateCustomFieldDefinitionRequest {
+  @ApiPropertyOptional({ maxLength: 80 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @Matches(/^[a-z0-9][a-z0-9-]{0,79}$/)
+  declare key?: string;
+
+  @ApiPropertyOptional({ maxLength: 200 })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  declare label?: string;
+
+  @ApiPropertyOptional({ enum: CUSTOM_FIELD_TYPES })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsIn(CUSTOM_FIELD_TYPES)
+  declare fieldType?: CustomFieldType;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsString({ each: true })
+  declare options?: readonly string[];
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  declare isRequired?: boolean;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsBoolean()
+  declare isActive?: boolean;
+
+  @ApiPropertyOptional()
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  declare displayOrder?: number;
+}
+
+export class SetCustomFieldValueDto implements SetCustomFieldValueRequest {
+  @ApiProperty({
+    oneOf: [
+      { type: 'string' },
+      { type: 'number' },
+      { type: 'boolean' },
+      { type: 'array', items: { type: 'string' } },
+    ],
+  })
+  @IsDefined()
+  declare value: CustomFieldValue;
 }
 
 export class CreateLocationDto implements CreateLocationRequest {
@@ -359,6 +474,28 @@ abstract class PageQueryDto implements PageRequest {
   @IsString()
   @MaxLength(256)
   declare cursor?: string;
+}
+
+export class ListCustomFieldDefinitionsDto
+  extends PageQueryDto
+  implements ListCustomFieldDefinitionsRequest
+{
+  @ApiPropertyOptional({ enum: CUSTOM_FIELD_ENTITY_TYPES })
+  @IsOptional()
+  @IsIn(CUSTOM_FIELD_ENTITY_TYPES)
+  declare entityType?: CustomFieldEntityType;
+
+  @ApiPropertyOptional({ enum: ['true', 'false'] })
+  @IsOptional()
+  @Transform(({ value }) => (value === 'true' ? true : value === 'false' ? false : value))
+  @IsBoolean()
+  declare active?: boolean;
+
+  @ApiPropertyOptional({ maxLength: 200 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  declare search?: string;
 }
 
 export class ListLocationsDto extends PageQueryDto implements Omit<BusinessListRequest, 'active'> {

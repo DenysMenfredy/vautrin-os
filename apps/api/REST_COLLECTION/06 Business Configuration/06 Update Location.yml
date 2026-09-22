@@ -1,0 +1,35 @@
+info:
+  name: Update Location
+  type: http
+  seq: 6
+  tags:
+    - business
+    - locations
+http:
+  method: PATCH
+  url: '{{baseUrl}}/business/locations/{{locationId}}'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Bruno Updated Location",
+        "city": "Ananindeua"
+      }
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('locationId')) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test('updates a tenant location', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.name).to.equal('Bruno Updated Location');
+          expect(res.body.city).to.equal('Ananindeua');
+        });

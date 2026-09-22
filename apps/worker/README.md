@@ -63,5 +63,5 @@ resuming, and the worker silently stops consuming.
 
 Processors. They arrive with their own backlog items: workflow execution
 (VOS-083), wait and condition steps (VOS-084/085), outbound messaging
-(VOS-086), agent invocation (VOS-087), webhook ingestion (VOS-064). Also
-pending: structured logging (VOS-120) and the Dockerfile (VOS-023).
+(VOS-086), agent invocation (VOS-087), webhook ingestion (VOS-064). The worker
+Dockerfile is present (VOS-023); structured logging remains pending (VOS-120).

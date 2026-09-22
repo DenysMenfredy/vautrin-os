@@ -1,0 +1,23 @@
+info:
+  name: Deactivate Service Area
+  type: http
+  seq: 17
+  tags:
+    - business
+    - service-areas
+http:
+  method: DELETE
+  url: '{{baseUrl}}/business/service-areas/{{serviceAreaId}}'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('serviceAreaId')) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test('deactivates the tenant service area', function () {
+          expect(res.status).to.equal(204);
+        });

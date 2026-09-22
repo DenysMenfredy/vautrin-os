@@ -21,10 +21,12 @@ Run the collection in sequence:
 2. Login, current session, tenant switch, refresh with a body token, refresh
    with the rotated HttpOnly cookie, then `/me` with the latest access token.
 3. Logout and a refresh attempt using the revoked token.
-4. Business configuration: create/update the profile, then exercise location,
-   service, and service-area list/create requests. Create requests are not
-   idempotent; rerunning them creates additional records. The sample service
-   uses a per-run key to avoid the tenant-level unique-key constraint.
+4. Business configuration: update/read the profile, then list, create, read,
+   update, and archive/deactivate locations, services, and service areas. The
+   delete endpoints are reversible state changes: locations are archived and
+   services/service areas are deactivated. Create requests are not idempotent;
+   rerunning them creates additional records. The sample service uses a
+   per-run key to avoid the tenant-level unique-key constraint.
 5. OpenAPI UI and JSON document requests (available outside production only).
 
 The scripts put tokens in Bruno runtime variables for the current run. They do

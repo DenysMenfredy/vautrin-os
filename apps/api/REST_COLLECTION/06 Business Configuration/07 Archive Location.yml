@@ -1,0 +1,23 @@
+info:
+  name: Archive Location
+  type: http
+  seq: 7
+  tags:
+    - business
+    - locations
+http:
+  method: DELETE
+  url: '{{baseUrl}}/business/locations/{{locationId}}'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('locationId')) bru.runner.skipRequest();
+    - type: tests
+      code: |-
+        test('archives the tenant location', function () {
+          expect(res.status).to.equal(204);
+        });

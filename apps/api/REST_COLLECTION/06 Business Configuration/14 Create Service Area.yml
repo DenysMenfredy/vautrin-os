@@ -1,7 +1,7 @@
 info:
   name: Create Service Area
   type: http
-  seq: 8
+  seq: 14
   tags:
     - business
     - service-areas

@@ -71,6 +71,9 @@ export class BusinessService {
           timezone: input.timezone ?? 'America/New_York',
           locale: input.locale ?? 'en-US',
           currency: input.currency?.toUpperCase() ?? 'USD',
+          ...(input.businessHours !== undefined
+            ? { businessHours: jsonObject(input.businessHours) }
+            : {}),
         },
         update: patch,
       });
@@ -504,6 +507,9 @@ function profilePatch(input: UpdateBusinessProfileRequest): Prisma.BusinessProfi
     ...(input.timezone !== undefined ? { timezone: input.timezone } : {}),
     ...(input.locale !== undefined ? { locale: input.locale } : {}),
     ...(input.currency !== undefined ? { currency: input.currency.toUpperCase() } : {}),
+    ...(input.businessHours !== undefined
+      ? { businessHours: jsonObject(input.businessHours) }
+      : {}),
   };
 }
 
@@ -566,6 +572,7 @@ function mapProfile(profile: {
   timezone: string;
   locale: string;
   currency: string;
+  businessHours: Prisma.JsonValue;
   createdAt: Date;
   updatedAt: Date;
 }): BusinessProfileResponse {
@@ -580,6 +587,7 @@ function mapProfile(profile: {
     timezone: profile.timezone,
     locale: profile.locale,
     currency: profile.currency,
+    businessHours: mapJsonObject(profile.businessHours),
     createdAt: profile.createdAt.toISOString(),
     updatedAt: profile.updatedAt.toISOString(),
   };
