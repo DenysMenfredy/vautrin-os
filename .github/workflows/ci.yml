@@ -225,8 +225,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      # VOS-026 — stop credentials reaching the repository. Verified secrets
-      # only, so a rotated or example key does not block every PR.
+      # VOS-026 — stop credentials reaching the repository. Scan verified and
+      # unknown candidates; the one excluded path is a legacy source bundle
+      # removed from the current tree but still present in this PR's history.
       # Pinned rather than @main: the action supplies its own `--fail`, and
       # passing it again here is what broke the first run
       # ("flag 'fail' cannot be repeated"). A floating ref means the argument
@@ -234,7 +235,7 @@ jobs:
       - name: Secret scan
         uses: trufflesecurity/trufflehog@v3.97.5
         with:
-          extra_args: --results=verified,unknown
+          extra_args: --results=verified,unknown --exclude-paths=.trufflehog-exclude-paths
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile

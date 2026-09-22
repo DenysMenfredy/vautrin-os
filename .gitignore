@@ -15,6 +15,9 @@ packages/database/generated/
 .env.*
 !.env.example
 
+# Local repository bundles can contain .git/, node_modules/, and .env files.
+/vautrin-os-v-01.zip
+
 # Test / coverage
 coverage/
 *.lcov
