@@ -37,3 +37,4 @@ backlog
 # Compose and infra definitions are inputs to the runtime, not the build
 infra
 docker-compose*.yml
+apps/api/REST_COLLECTION

@@ -1,0 +1,16 @@
+info:
+  name: OpenAPI UI
+  type: http
+  seq: 1
+  tags:
+    - docs
+http:
+  method: GET
+  url: '{{baseUrl}}/docs'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('serves the OpenAPI UI outside production', function () {
+          expect(res.status).to.equal(200);
+        });

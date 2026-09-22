@@ -1,0 +1,33 @@
+info:
+  name: Refresh — revoked after logout
+  type: http
+  seq: 2
+  tags:
+    - auth
+    - session
+    - negative
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/refresh'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const refreshToken = bru.getVar('revokedRefreshToken');
+        if (!refreshToken) {
+          bru.runner.skipRequest();
+        } else {
+          await bru.cookies.jar().deleteCookie('{{baseUrl}}/auth/refresh', 'vos_refresh');
+          req.setBody({ refreshToken });
+        }
+    - type: tests
+      code: |-
+        test('rejects reuse of the refresh token revoked by logout', function () {
+          expect(res.status).to.equal(401);
+        });

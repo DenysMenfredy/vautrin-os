@@ -59,6 +59,9 @@ export class TenantService {
     email: string,
     passwordHash: string,
   ): Promise<{ tenantId: string; userId: string }> {
+    // SDD-05 §4: bootstrap sets transaction-local tenant context below before
+    // any tenant write; the connection still uses the RLS-constrained role.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     return await this.database.unscoped.$transaction(async (tx) => {
       // Ask the database for the id so UUIDv7 generation stays in one place
       // (SDD-04 §5), then adopt it as the tenant context for this
@@ -148,16 +151,55 @@ export class TenantService {
   }
 
   /**
-   * Revokes a membership.
+   * Revokes a membership and its relevant sessions as one security use case.
    *
-   * The access token keeps working until it expires (ADR-013), so the
-   * caller must also revoke the user's refresh tokens for this to take
-   * effect promptly.
+   * The access token keeps working until it expires (ADR-013). Revoking the
+   * active-tenant refresh sessions here prevents them from minting a fresh
+   * token for the removed tenant, and the audit record commits with the same
+   * transaction as the membership change.
    */
-  async revokeMembership(tenantId: string, userId: string): Promise<void> {
-    await this.database.withTenant(tenantId, (tx) =>
-      tx.tenantUser.updateMany({ where: { tenantId, userId }, data: { status: 'REVOKED' } }),
-    );
+  async revokeMembership(
+    tenantId: string,
+    userId: string,
+    actorUserId?: string | undefined,
+  ): Promise<void> {
+    // This operation intentionally uses one transaction over tenant-scoped
+    // and global tables. It does not use the AuditService because that service
+    // is best-effort for ordinary telemetry; membership revocation requires a
+    // durable atomic security record.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
+    await this.database.unscoped.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+
+      const membership = await tx.tenantUser.findFirst({
+        where: { tenantId, userId },
+        select: { id: true },
+      });
+      if (!membership) throw new NotFoundException('Membership not found.');
+
+      await tx.tenantUser.update({
+        where: { id: membership.id },
+        data: { status: 'REVOKED' },
+      });
+
+      await tx.refreshToken.updateMany({
+        where: { userId, activeTenantId: tenantId, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'membership_revoked' },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: actorUserId ? 'USER' : 'SYSTEM',
+          actorId: actorUserId ?? null,
+          action: 'tenant.membership.revoked',
+          outcome: 'SUCCESS',
+          resourceType: 'tenant_membership',
+          resourceId: membership.id,
+          metadata: { revokedUserId: userId },
+        },
+      });
+    });
   }
 }
 

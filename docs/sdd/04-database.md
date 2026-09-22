@@ -177,3 +177,19 @@ The production database must have:
 - documented retention policy.
 
 Exact infrastructure values are environment decisions, not hardcoded in the domain.
+
+## V0.2 Addendum - Schema reconciliation
+
+The V0.1 table inventory is no longer an exact closed list. ADR-approved schema evolution is allowed when the SDD is updated in the same change.
+
+Additional approved tables:
+
+```text
+refresh_tokens
+services
+service_areas
+```
+
+`refresh_tokens` is global. `services` and `service_areas` are tenant-scoped and MUST receive ENABLE + FORCE RLS and isolation tests.
+
+The reviewed V0.2 snapshot contained six migrations; subsequent approved schema changes must not hardcode migration counts as completion evidence.

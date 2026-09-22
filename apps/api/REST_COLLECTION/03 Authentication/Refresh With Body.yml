@@ -1,0 +1,43 @@
+info:
+  name: Refresh — body token
+  type: http
+  seq: 4
+  tags:
+    - auth
+    - tokens
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/refresh'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const refreshToken = bru.getVar('refreshToken');
+        if (!refreshToken) {
+          bru.runner.skipRequest();
+        } else {
+          // Exercise body-token refresh without sending Bruno's current cookie.
+          await bru.cookies.jar().deleteCookie('{{baseUrl}}/auth/refresh', 'vos_refresh');
+          req.setBody({ refreshToken });
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 200) {
+          bru.setVar('accessToken', res.body.accessToken);
+          bru.setVar('refreshToken', res.body.refreshToken);
+          bru.setVar('activeTenantId', res.body.activeTenantId || '');
+        }
+    - type: tests
+      code: |-
+        test('rotates the body refresh token and returns a new access token', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.accessToken).to.be.a('string').and.not.empty;
+          expect(res.body.refreshToken).to.be.a('string').and.not.empty;
+          expect(res.body.expiresIn).to.equal(900);
+        });

@@ -152,6 +152,14 @@ jobs:
       - name: Build workspace packages
         run: pnpm run build
 
+      # Disposable signing key: no repository secret or production credential
+      # is needed for synthetic sessions, including pull requests from forks.
+      - name: Generate integration-test signing key
+        run: |
+          test_jwt_secret="$(openssl rand -hex 32)"
+          echo "::add-mask::$test_jwt_secret"
+          echo "JWT_SECRET=$test_jwt_secret" >> "$GITHUB_ENV"
+
       - name: Integration tests
         run: pnpm run test:integration
 
@@ -170,6 +178,9 @@ jobs:
 
       - name: Install Semgrep
         run: pipx install semgrep==1.177.0
+
+      - name: Test project security rules
+        run: semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts --metrics=off
 
       # Two sources of rules:
       #   - community packs for the common classes (injection, unsafe APIs,

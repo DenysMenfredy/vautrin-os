@@ -7,6 +7,7 @@ const valid = {
   DATABASE_MIGRATION_URL: 'postgresql://vautrin_migrator:pw@localhost:5435/vautrin',
   REDIS_URL: 'redis://localhost:6379',
   JWT_SECRET: 'x'.repeat(48),
+  TRUSTED_ORIGINS: 'https://app.example.com',
 };
 
 describe('loadEnvironment', () => {
@@ -15,6 +16,7 @@ describe('loadEnvironment', () => {
     expect(env.NODE_ENV).toBe('development');
     expect(env.API_PORT).toBe(3000);
     expect(env.API_GLOBAL_PREFIX).toBe('api');
+    expect(env.TRUST_PROXY).toBe(0);
     expect(env.LOG_LEVEL).toBe('info');
   });
 
@@ -62,6 +64,19 @@ describe('loadEnvironment', () => {
 
   it('allows distinct roles in production', () => {
     expect(() => loadEnvironment({ ...valid, NODE_ENV: 'production' })).not.toThrow();
+  });
+
+  it('requires a trusted origin in production', () => {
+    const { TRUSTED_ORIGINS: _omitted, ...withoutOrigins } = valid;
+    expect(() => loadEnvironment({ ...withoutOrigins, NODE_ENV: 'production' })).toThrow(
+      /TRUSTED_ORIGINS/,
+    );
+  });
+
+  it('rejects non-exact trusted origins', () => {
+    expect(() => loadEnvironment({ ...valid, TRUSTED_ORIGINS: '*' })).toThrow(
+      /invalid exact origin/,
+    );
   });
 });
 

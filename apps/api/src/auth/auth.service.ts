@@ -51,6 +51,7 @@ export class AuthService {
     context: RequestContext,
   ): Promise<AuthTokensResponse> {
     // Global lookup: authentication precedes any tenant (SDD-04 §3).
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     const user = await this.database.unscoped.user.findUnique({
       where: { email: email.toLowerCase().trim() },
     });
@@ -81,9 +82,15 @@ export class AuthService {
 
     const [accessToken, refreshToken] = await Promise.all([
       this.issueAccessToken(user.id, active),
-      this.refreshTokens.issue({ userId: user.id, ...context }),
+      this.refreshTokens.issue({
+        userId: user.id,
+        activeTenantId: active?.tenantId,
+        ...context,
+      }),
     ]);
 
+    // SDD-04 §3: last-login metadata belongs to the global user identity.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     await this.database.unscoped.user.update({
       where: { id: user.id },
       data: { lastLoginAt: new Date() },
@@ -113,6 +120,8 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token.');
     }
 
+    // ADR-013: resolve the global user from the redeemed refresh token.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     const user = await this.database.unscoped.user.findUnique({
       where: { id: rotated.userId },
     });
@@ -124,7 +133,14 @@ export class AuthService {
     }
 
     const memberships = await this.loadMemberships(user.id);
-    const active = memberships.length === 1 ? memberships[0] : undefined;
+    const active = this.resolveActiveMembership(memberships, rotated.activeTenantId);
+
+    // A membership may have been revoked since the token was issued. Do not
+    // silently move the session to an unrelated tenant; clear the preference
+    // and require an explicit switch after the caller chooses a valid one.
+    if (rotated.activeTenantId && !active) {
+      await this.refreshTokens.setActiveTenantForToken(user.id, rotated.token, null);
+    }
 
     return {
       accessToken: await this.issueAccessToken(user.id, active),
@@ -153,6 +169,7 @@ export class AuthService {
   async switchTenant(
     userId: string,
     tenantId: string,
+    presentedRefreshToken?: string | undefined,
   ): Promise<{ accessToken: string; expiresIn: number; activeTenantId: string }> {
     const memberships = await this.loadMemberships(userId);
     const target = memberships.find((m) => m.tenantId === tenantId);
@@ -162,6 +179,8 @@ export class AuthService {
       // a member, so this cannot be used to probe for tenants.
       throw new UnauthorizedException('No active membership for that tenant.');
     }
+
+    await this.refreshTokens.setActiveTenant(userId, target.tenantId, presentedRefreshToken);
 
     return {
       accessToken: await this.issueAccessToken(userId, target),
@@ -175,6 +194,8 @@ export class AuthService {
     activeTenantId: string | null,
     role: Role | null,
   ): Promise<CurrentSessionResponse> {
+    // SDD-04 §3: userId is authenticated identity, not tenant-scoped data.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     const user = await this.database.unscoped.user.findUniqueOrThrow({ where: { id: userId } });
     const memberships = await this.loadMemberships(userId);
 
@@ -214,6 +235,17 @@ export class AuthService {
       slug: row.tenant.slug,
       role: row.role,
     }));
+  }
+
+  private resolveActiveMembership(
+    memberships: TenantMembershipSummary[],
+    preferredTenantId: string | null,
+  ): TenantMembershipSummary | undefined {
+    if (preferredTenantId) {
+      return memberships.find((membership) => membership.tenantId === preferredTenantId);
+    }
+
+    return memberships.length === 1 ? memberships[0] : undefined;
   }
 
   private issueAccessToken(

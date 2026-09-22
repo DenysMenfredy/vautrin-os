@@ -140,16 +140,16 @@ Read/write/delete isolation.
 ## EPIC E4 — Business configuration
 
 ### VOS-040 [P1] Business profile
-Name, contact details, timezone, locale.
+**Status:** DONE — tenant-scoped profile read/create/update API for name, contact details, timezone, locale, and currency, with validation and audit.
 
 ### VOS-041 [P1] Locations
-Service/physical locations.
+**Status:** DONE — tenant-scoped CRUD, primary-location serialization, coordinate/timezone validation, cursor pagination, and archive semantics.
 
 ### VOS-042 [P1] Services
-Service catalog.
+**Status:** DONE — tenant-scoped service catalog CRUD, key uniqueness, search/filter pagination, and deactivation.
 
 ### VOS-043 [P1] Service areas
-Cities/ZIP/service regions.
+**Status:** DONE — tenant-scoped service-area CRUD for the ADR-014 types, configuration JSON, filtering/pagination, and deactivation.
 
 ### VOS-044 [P1] Business hours
 Weekly availability rules.
@@ -394,6 +394,20 @@ Ensure idempotent external action.
 
 ## Security review log
 
+### 2026-09-21 — authentication CI blockers
+
+- Generate and mask an ephemeral integration-test JWT key; forward it only
+  to uncached Turbo integration tasks, without a production/repository secret.
+- Keep Semgrep blocking, with documented call-site exceptions for the 11
+  reviewed global identity/session and tenant-bootstrap accesses.
+- Add configuration and security-rule regressions; leave the existing
+  private-repository CodeQL skip unchanged.
+- Local validation: lint/typecheck/build, 70 unit tests, and 52 integration
+  tests pass. Integration tests also pass from a source snapshot without
+  `.env`, using the workflow-generated key. Full Semgrep scan has zero
+  findings; both project-rule regression suites pass. GitHub confirmation
+  requires committing/pushing these changes.
+
 ### 2026-09-19 — first security pass (CI introduction)
 
 Findings and disposition:
@@ -435,3 +449,35 @@ P2/P3 candidates:
 - additional home-service templates;
 - additional communication providers;
 - enterprise tenant isolation options.
+
+# V0.2 Review Addendum
+
+## Immediate correction tasks
+
+### VOS-027 [P1] Authentication abuse controls
+**Status:** DONE — Redis-backed expiring IP/account/token counters with rate-limit observability and no permanent account lockout.
+
+### VOS-028 [P1] Cookie/origin/proxy security contract
+**Status:** DONE — same-origin topology documented, exact trusted origins enforced for cookie mutations, and explicit proxy-hop configuration applied before request IP use.
+
+### VOS-037 [P0] Atomic refresh-token rotation
+**Status:** DONE — predecessor compare-and-set plus concurrent integration coverage.
+
+### VOS-038 [P0] Preserve active tenant across refresh
+**Status:** DONE — refresh sessions persist, inherit, update, and revalidate active tenant selection.
+
+### VOS-039 [P0] Secure membership revocation use case
+**Status:** DONE — membership, relevant refresh sessions, and audit record commit atomically with integration coverage.
+
+### VOS-014 [P0] Documentation consistency gate
+**Status:** DONE — SDD addenda, ADR-014, and reviewed backlog metadata reconciled.
+
+## Status corrections
+
+- VOS-121 Audit log: **IN_PROGRESS**. Authentication/authorization coverage exists; remaining mutation/tool/integration/workflow audit surfaces are pending.
+- VOS-012 Redis/BullMQ package: implementation exists in API/worker queue infrastructure, but completion should be marked DONE only after its package-level acceptance criteria are explicitly verified.
+- VOS-022 E2E pipeline: authentication integration/E2E coverage exists, but the product critical-path E2E pipeline remains TODO.
+
+## Next milestone order
+
+Do not begin the AI/workflow product layer until VOS-037, VOS-038, VOS-039 and VOS-014 are complete. Then execute E4 Business Configuration followed by E5 CRM.
