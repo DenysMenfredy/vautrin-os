@@ -7,8 +7,7 @@ public issue.
 
 ## Automated checks
 
-Every pull request runs the main CI workflow and the Semgrep workflow. The main
-CI workflow also runs on pushes to `main`; Semgrep runs on every branch push.
+Every pull request runs the main CI workflow and the dedicated Semgrep workflow:
 
 | Check | What it catches |
 |---|---|
@@ -16,7 +15,8 @@ CI workflow also runs on pushes to `main`; Semgrep runs on every branch push.
 | `pnpm audit` | Known CVEs in the dependency tree; gated at **high** |
 | Non-root assertion | A Dockerfile that lost its `USER node` |
 | RLS coverage | A tenant-scoped table shipped without an RLS policy |
-| Semgrep (`semgrep.yml`) | Tokenless Community Edition scan using TypeScript, security-audit, OWASP Top 10, and `.semgrep/vautrin.yml` project rules |
+| Semgrep (`semgrep.yml`) | Runs on every pull request and branch push; community packs (injection, unsafe APIs, OWASP Top 10) plus `.semgrep/vautrin.yml` project rules |
+| Semgrep rules tests | Project-specific security rules are tested before the source scan |
 
 The integration job additionally asserts that the runtime database role holds
 neither `SUPERUSER` nor `BYPASSRLS`. Without that, every tenant-isolation test
@@ -44,18 +44,26 @@ the hidden rules directory is tested, not silently skipped. The fixtures
 verify that unreviewed global/tenant queries and unsafe
 proxy paths remain detectable, while tenant-scoped queries pass.
 
-## Semgrep coverage and limits
+## Semgrep CI coverage and limitations
 
-`.github/workflows/semgrep.yml` runs on pull requests, every branch push, and
-manual dispatch. It installs a pinned Semgrep CLI, tests the project-specific
-rules, then scans `apps`, `packages`, and `scripts`. Findings fail the job.
-The workflow uses no account token or repository secret, so it can run for
-private repositories and fork pull requests.
+`.github/workflows/semgrep.yml` runs Semgrep Community Edition on every pull
+request and branch push, plus manual `workflow_dispatch` runs. The workflow
+installs a pinned CLI, tests the project rules, then scans the source tree. It
+uses no repository secret or Semgrep account token, which keeps the baseline
+available to private repositories and fork pull requests. See Semgrep's
+[Community Edition CI configuration](https://semgrep.dev/docs/semgrep-ci/sample-ci-configs).
 
-The tokenless scan reports findings in GitHub Actions logs. It does not upload
-results to the Semgrep dashboard or GitHub Security tab. Keep code review and
-the project-specific taint rule for the Nuxt proxy path in place; static
-analysis does not replace either.
+Findings fail the GitHub Actions job via `--error`. This tokenless CLI setup
+reports in the Actions log but does not upload results to the Semgrep App
+dashboard or GitHub's Security tab. Semgrep App integrations and their managed
+findings require a `SEMGREP_APP_TOKEN`; those are intentionally not a
+prerequisite for this repository's CI gate. See the [Semgrep GitHub CI
+documentation](https://semgrep.dev/docs/semgrep-ci/overview).
+
+The scanner combines `.semgrep/vautrin.yml` with the TypeScript,
+security-audit, and OWASP Top 10 community packs. Static analysis is not a
+substitute for review: in particular, review request-controlled data flows to
+sensitive sinks and keep tenant-isolation tests in the integration pipeline.
 
 ## Controls in place
 

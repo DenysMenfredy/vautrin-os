@@ -1,4 +1,5 @@
-# Tokenless Semgrep Community Edition static analysis.
+# Tokenless Semgrep Community Edition scan. This runs independently from the
+# main CI workflow so every branch push is scanned, including private repos.
 name: Semgrep
 
 on:
@@ -39,6 +40,8 @@ jobs:
       - name: Test project security rules
         run: semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts --metrics=off
 
+      # Custom rules cover project-specific patterns; community packs cover
+      # common TypeScript and OWASP security issues.
       - name: Scan source code
         run: |
           semgrep scan \
