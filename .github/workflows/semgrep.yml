@@ -1,0 +1,56 @@
+# Tokenless Semgrep Community Edition scan. This runs independently from the
+# main CI workflow so every branch push is scanned, including private repos.
+name: Semgrep
+
+on:
+  pull_request:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+concurrency:
+  group: semgrep-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  DO_NOT_TRACK: '1'
+  CHECKPOINT_DISABLE: '1'
+
+jobs:
+  scan:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Semgrep
+        run: pipx install semgrep==1.177.0
+
+      - name: Test project security rules
+        run: semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts --metrics=off
+
+      # Custom rules cover project-specific patterns; community packs cover
+      # common TypeScript and OWASP security issues.
+      - name: Scan source code
+        run: |
+          semgrep scan \
+            --config=.semgrep/vautrin.yml \
+            --config=p/typescript \
+            --config=p/security-audit \
+            --config=p/owasp-top-ten \
+            --error \
+            --metrics=off \
+            --exclude=node_modules --exclude=dist \
+            --exclude=.nuxt --exclude=.output --exclude=generated \
+            apps packages scripts
