@@ -77,9 +77,12 @@ for (const dir of readdirSync(MIGRATIONS).sort()) {
     for (const entry of listed[1].matchAll(/'([a-z_]+)'/g)) covered.add(entry[1]);
   }
 
-  // Tables given a policy directly.
-  for (const entry of sql.matchAll(/CREATE\s+POLICY\s+\w+\s+ON\s+(?:public\.)?(\w+)/gi)) {
-    covered.add(entry[1]);
+  // Tables given a policy directly. Prisma migrations quote identifiers, so
+  // accept quoted or unquoted policy/table names with an optional schema.
+  const directPolicy =
+    /CREATE\s+POLICY\s+(?:"[^"]+"|\w+)\s+ON\s+(?:(?:"?public"?)\s*\.\s*)?(?:"([^"]+)"|(\w+))/gi;
+  for (const entry of sql.matchAll(directPolicy)) {
+    covered.add(entry[1] ?? entry[2]);
   }
 }
 
