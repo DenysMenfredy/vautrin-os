@@ -1,4 +1,4 @@
-# Vautrin OS — Architecture and Implementation Baseline v0.2
+# Vautrin OS — Architecture and Implementation Baseline
 
 Vautrin OS is a multi-tenant SaaS platform for local businesses, initially
 verticalized for remodeling and home-service businesses in the United States.
@@ -12,11 +12,17 @@ human developers and AI coding agents.
 The repository has the monorepo, database, tenant-isolation, authentication,
 and CI foundations in place. Business Configuration includes the profile
 (including business-hours configuration), locations, services, service areas,
-custom field definitions, and custom field values. The next product milestone
-is CRM; tenant-scoped Contacts CRUD, search, and pagination are implemented,
-with Leads next. See
+custom field definitions, and custom field values. CRM now includes contacts,
+leads, tenant-owned lead sources, lifecycle transitions, assignment, and a
+minimal pipeline dashboard. The shared queue package and versioned lead
+outbox events establish the v0.2 events-and-queues gate. See
 [`backlog/technical-backlog.md`](backlog/technical-backlog.md) for task status
 and acceptance criteria.
+
+V0.3 work has begun with RLS-safe outbox dispatch, idempotent workflow-run
+creation, and tenant-scoped conversation/message APIs. Messaging providers,
+workflow steps, AI, booking, and GCP staging are not implemented yet; the
+v0.3 exit criteria remain open.
 
 ## Product principle
 

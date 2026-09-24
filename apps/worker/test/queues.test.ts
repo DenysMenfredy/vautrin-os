@@ -1,6 +1,5 @@
+import { ALL_QUEUES, QUEUE } from '@vautrin/queues';
 import { describe, expect, it } from 'vitest';
-
-import { ALL_QUEUES, QUEUE } from '../src/queues/queues.constants.js';
 
 describe('queue catalogue', () => {
   it('matches the queues named in ADR-009', () => {

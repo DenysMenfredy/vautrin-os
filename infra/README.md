@@ -38,7 +38,9 @@ checks and role bootstrap.
 | `vautrin/worker` | `apps/worker/Dockerfile` | Queue consumer |
 | `vautrin/migrate` | `packages/database/Dockerfile` | One-shot `prisma migrate deploy` |
 
-`apps/web` has no image yet — the application does not exist (VOS-003).
+`apps/web` exists and has a Dockerfile for local/container development. The
+v0.3 GCP production target instead serves a static Nuxt build from GCS/CDN;
+the external HTTPS load balancer must route same-origin `/api/*` to the API.
 
 All three build **from the repository root**, because each compiles the
 shared workspace packages into itself (SDD-12 §8):

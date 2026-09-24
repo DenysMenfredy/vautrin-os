@@ -64,6 +64,22 @@ and neither has an RLS policy (ADR-013).
 Tenant-scoped access to people goes through `tenant_users`, which is
 protected.
 
+V0.3 adds nullable `provider_event_id`, `correlation_id`, and
+`idempotency_key` to `messages`. Unique tenant/provider/event and
+tenant/idempotency indexes form the webhook/outbound deduplication boundary;
+provider message IDs remain separately unique. The provider ingestion path
+must still validate signatures and resolve a tenant before any write.
+
+Outbox discovery uses a SECURITY DEFINER function returning only pending
+tenant IDs and oldest timestamps. Actual event reads/claims/updates stay
+inside transaction-local tenant RLS context; the normal runtime role cannot
+query another tenant's event rows.
+
+The tenant-scoped `contact_channel_preferences` table records per-contact,
+per-channel opt-out timestamps and their source. It has FORCE RLS and a unique
+tenant/contact/channel key. It is a technical send-suppression boundary, not
+a complete legal consent policy.
+
 ## 4. Common columns
 
 Tenant-scoped tables should normally contain:

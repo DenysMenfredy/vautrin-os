@@ -7,6 +7,7 @@ import {
 import type {
   BusinessListRequest,
   BusinessProfileResponse,
+  BusinessSettingsResponse,
   CreateLocationRequest,
   CreateServiceAreaRequest,
   CreateServiceRequest,
@@ -15,6 +16,7 @@ import type {
   ServiceAreaResponse,
   ServiceResponse,
   UpdateBusinessProfileRequest,
+  UpdateBusinessSettingsRequest,
   UpdateLocationRequest,
   UpdateServiceAreaRequest,
   UpdateServiceRequest,
@@ -87,6 +89,55 @@ export class BusinessService {
       resourceId: profile.id,
     });
     return mapProfile(profile);
+  }
+
+  async getSettings(tenantId: string): Promise<BusinessSettingsResponse> {
+    const profile = await this.database.withTenant(tenantId, (tx) =>
+      tx.businessProfile.findFirst({ where: { tenantId } }),
+    );
+    if (!profile) throw new NotFoundException('Business profile not found.');
+    return mapSettings(profile);
+  }
+
+  async updateSettings(
+    tenantId: string,
+    actorId: string,
+    input: UpdateBusinessSettingsRequest,
+  ): Promise<BusinessSettingsResponse> {
+    if (Object.keys(input).length === 0) {
+      throw new BadRequestException('At least one business setting is required.');
+    }
+    const profile = await this.database.withTenant(tenantId, async (tx) => {
+      const updated = await tx.businessProfile.updateMany({
+        where: { tenantId },
+        data: {
+          ...(input.communicationPreferences !== undefined
+            ? { communicationPreferences: jsonObject(input.communicationPreferences) }
+            : {}),
+          ...(input.qualificationRules !== undefined
+            ? { qualificationRules: jsonObject(input.qualificationRules) }
+            : {}),
+          ...(input.bookingRules !== undefined
+            ? { bookingRules: jsonObject(input.bookingRules) }
+            : {}),
+          ...(input.aiConfiguration !== undefined
+            ? { aiConfiguration: jsonObject(input.aiConfiguration) }
+            : {}),
+        },
+      });
+      if (updated.count === 0) throw new NotFoundException('Business profile not found.');
+      const result = await tx.businessProfile.findFirst({ where: { tenantId } });
+      if (!result) throw new NotFoundException('Business profile not found.');
+      return result;
+    });
+    await this.audit.recordMutation({
+      tenantId,
+      userId: actorId,
+      action: 'business.settings.updated',
+      resourceType: 'business_profile',
+      resourceId: profile.id,
+    });
+    return mapSettings(profile);
   }
 
   async createLocation(
@@ -589,6 +640,22 @@ function mapProfile(profile: {
     currency: profile.currency,
     businessHours: mapJsonObject(profile.businessHours),
     createdAt: profile.createdAt.toISOString(),
+    updatedAt: profile.updatedAt.toISOString(),
+  };
+}
+
+function mapSettings(profile: {
+  communicationPreferences: Prisma.JsonValue;
+  qualificationRules: Prisma.JsonValue;
+  bookingRules: Prisma.JsonValue;
+  aiConfiguration: Prisma.JsonValue;
+  updatedAt: Date;
+}): BusinessSettingsResponse {
+  return {
+    communicationPreferences: mapJsonObject(profile.communicationPreferences),
+    qualificationRules: mapJsonObject(profile.qualificationRules),
+    bookingRules: mapJsonObject(profile.bookingRules),
+    aiConfiguration: mapJsonObject(profile.aiConfiguration),
     updatedAt: profile.updatedAt.toISOString(),
   };
 }

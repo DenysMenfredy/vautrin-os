@@ -2,7 +2,7 @@
   "name": "@vautrin/api",
   "version": "0.1.0",
   "private": true,
-  "description": "Vautrin OS HTTP API \u2014 NestJS modular monolith (VOS-004, ADR-002)",
+  "description": "Vautrin OS HTTP API — NestJS modular monolith (VOS-004, ADR-002)",
   "main": "dist/main.js",
   "scripts": {
     "build": "nest build",
@@ -22,6 +22,7 @@
     "@vautrin/config": "workspace:*",
     "@vautrin/contracts": "workspace:*",
     "@vautrin/database": "workspace:*",
+    "@vautrin/integrations": "workspace:^",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "helmet": "^8.3.0",
@@ -36,6 +37,7 @@
     "@types/node": "^26.6.2",
     "@vautrin/testing": "workspace:*",
     "dotenv-cli": "^8.0.0",
+    "twilio": "^5.4.0",
     "typescript": "^5.7.2",
     "vite": "^8.3.0",
     "vitest": "4.1.11"

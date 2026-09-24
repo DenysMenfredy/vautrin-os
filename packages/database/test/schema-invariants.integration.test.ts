@@ -70,3 +70,53 @@ describe('global tables', () => {
     },
   );
 });
+
+describe('published workflow versions', () => {
+  it('pins the execution contract while allowing pause and new versions', async () => {
+    const tenant = await db.tenant.create({
+      data: { slug: `workflow-version-${crypto.randomUUID()}`, name: 'Workflow version test' },
+    });
+    try {
+      const draft = await db.workflow.create({
+        data: {
+          tenantId: tenant.id,
+          key: 'recovery',
+          version: 1,
+          name: 'Recovery',
+          trigger: 'call.missed',
+          definition: { steps: [] },
+        },
+      });
+      expect(draft.publishedAt).toBeNull();
+      const active = await db.workflow.update({
+        where: { id: draft.id },
+        data: { status: 'ACTIVE' },
+      });
+      expect(active.publishedAt).not.toBeNull();
+      await expect(
+        db.workflow.update({
+          where: { id: draft.id },
+          data: { definition: { steps: [{ id: 'changed', type: 'END' }] } },
+        }),
+      ).rejects.toThrow();
+      const paused = await db.workflow.update({
+        where: { id: draft.id },
+        data: { status: 'PAUSED' },
+      });
+      expect(paused.definition).toEqual(active.definition);
+      const next = await db.workflow.create({
+        data: {
+          tenantId: tenant.id,
+          key: 'recovery',
+          version: 2,
+          name: 'Recovery',
+          trigger: 'call.missed',
+          definition: { steps: [{ id: 'changed', type: 'END' }] },
+        },
+      });
+      expect(next.version).toBe(2);
+    } finally {
+      await db.tenant.delete({ where: { id: tenant.id } });
+    }
+  });
+});

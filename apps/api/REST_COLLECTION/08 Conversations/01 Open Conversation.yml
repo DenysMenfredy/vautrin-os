@@ -1,0 +1,33 @@
+info:
+  name: Open Conversation
+  type: http
+  seq: 1
+  tags:
+    - conversations
+http:
+  method: POST
+  url: '{{baseUrl}}/conversations'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({ contactId: bru.getVar('contactId'), channel: 'SMS' });
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('conversationId', res.body.id);
+    - type: tests
+      code: |-
+        test('opens a tenant conversation for the CRM contact', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.channel).to.equal('SMS');
+          expect(res.body.status).to.equal('OPEN');
+        });

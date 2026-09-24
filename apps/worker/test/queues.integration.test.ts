@@ -3,11 +3,12 @@ import 'reflect-metadata';
 import { getQueueToken } from '@nestjs/bullmq';
 import type { INestApplicationContext } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { ALL_QUEUES, QUEUE } from '@vautrin/queues';
 import type { Queue } from 'bullmq';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { AppModule } from '../src/app.module.js';
-import { ALL_QUEUES, QUEUE } from '../src/queues/queues.constants.js';
+import { EnvironmentModule } from '../src/config/environment.module.js';
+import { QueuesModule } from '../src/queues/queues.module.js';
 
 /**
  * Proves the worker actually reaches Redis (ADR-009).
@@ -21,7 +22,7 @@ describe('worker queues', () => {
   let app: INestApplicationContext;
 
   beforeAll(async () => {
-    app = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    app = await Test.createTestingModule({ imports: [EnvironmentModule, QueuesModule] }).compile();
     await app.init();
   });
 

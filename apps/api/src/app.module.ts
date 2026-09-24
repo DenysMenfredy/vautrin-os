@@ -8,8 +8,11 @@ import { CapabilityGuard } from './authz/capability.guard.js';
 import { BusinessModule } from './business/business.module.js';
 import { EnvironmentModule } from './config/environment.module.js';
 import { ContactsModule } from './contacts/contacts.module.js';
+import { ConversationsModule } from './conversations/conversations.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { IntegrationsModule } from './integrations/integrations.module.js';
+import { LeadsModule } from './leads/leads.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
 
 /**
@@ -34,7 +37,10 @@ import { TenantModule } from './tenant/tenant.module.js';
     TenantModule,
     BusinessModule,
     ContactsModule,
+    ConversationsModule,
+    LeadsModule,
     HealthModule,
+    IntegrationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

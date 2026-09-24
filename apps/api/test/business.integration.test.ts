@@ -150,6 +150,50 @@ describe('business profile (VOS-040)', () => {
     });
   });
 
+  it('manages operational settings only for authorized tenant admins', async () => {
+    const initial = await request('GET', '/business/settings', ownerToken);
+    expect(initial.status).toBe(200);
+    expect(await initial.json()).toMatchObject({
+      communicationPreferences: {},
+      qualificationRules: {},
+      bookingRules: {},
+      aiConfiguration: {},
+    });
+
+    expect((await request('GET', '/business/settings', staffToken)).status).toBe(403);
+    expect((await request('GET', '/business/settings', otherTenantToken)).status).toBe(404);
+    expect(
+      (await request('PATCH', '/business/settings', staffToken, { bookingRules: {} })).status,
+    ).toBe(403);
+
+    const settings = {
+      communicationPreferences: { preferredChannel: 'email' },
+      qualificationRules: { minimumBudget: 5000 },
+      bookingRules: { requireConfirmation: true },
+      aiConfiguration: { enabled: false },
+    };
+    const updated = await request('PATCH', '/business/settings', ownerToken, settings);
+    expect(updated.status).toBe(200);
+    expect(await updated.json()).toMatchObject(settings);
+    const readBack = await request('GET', '/business/settings', ownerToken);
+    expect(await readBack.json()).toMatchObject(settings);
+
+    const publicProfile = await request('GET', '/business/profile', staffToken);
+    expect(await publicProfile.json()).not.toHaveProperty('aiConfiguration');
+    expect((await request('PATCH', '/business/settings', ownerToken, {})).status).toBe(400);
+    expect(
+      (await request('PATCH', '/business/settings', ownerToken, { aiConfiguration: null })).status,
+    ).toBe(400);
+    expect(
+      (await request('PATCH', '/business/settings', ownerToken, { tenantId: tenantB })).status,
+    ).toBe(400);
+
+    const audit = await platform.auditLog.findFirst({
+      where: { tenantId: tenantA, action: 'business.settings.updated' },
+    });
+    expect(audit).not.toBeNull();
+  });
+
   it('validates timezone and requires a name when no profile exists', async () => {
     const invalid = await request('PATCH', '/business/profile', otherTenantToken, {
       phone: '+15550001111',

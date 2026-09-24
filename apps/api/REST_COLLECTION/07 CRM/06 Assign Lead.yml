@@ -1,0 +1,36 @@
+info:
+  name: Assign Lead
+  type: http
+  seq: 6
+  tags:
+    - crm
+    - leads
+http:
+  method: PATCH
+  url: '{{baseUrl}}/leads/{{leadId}}/assignment'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({
+          version: Number(bru.getVar('leadVersion')),
+          assignedUserId: bru.getVar('actorUserId')
+        });
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar('leadVersion', res.body.version);
+    - type: tests
+      code: |-
+        test('assigns the lead to an active tenant member', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.assignedUserId).to.equal(bru.getVar('actorUserId'));
+        });

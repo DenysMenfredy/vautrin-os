@@ -21,6 +21,7 @@ runtime:
         bru.setVar('accessToken', '');
         bru.setVar('refreshToken', '');
         bru.setVar('activeTenantId', '');
+        bru.setVar('actorUserId', '');
 
         const email = bru.getEnvVar('email');
         const password = bru.getEnvVar('password');
@@ -37,6 +38,7 @@ runtime:
           bru.setVar('accessToken', res.body.accessToken);
           bru.setVar('refreshToken', res.body.refreshToken);
           bru.setVar('activeTenantId', res.body.activeTenantId || '');
+          bru.setVar('actorUserId', res.body.user.id);
         }
     - type: tests
       code: |-

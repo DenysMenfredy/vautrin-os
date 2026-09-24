@@ -1,0 +1,27 @@
+info:
+  name: Change Conversation Status
+  type: http
+  seq: 3
+  tags:
+    - conversations
+http:
+  method: PATCH
+  url: '{{baseUrl}}/conversations/{{conversationId}}/status'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      { "status": "PENDING" }
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('changes a conversation state', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.status).to.equal('PENDING');
+        });

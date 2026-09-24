@@ -2,8 +2,9 @@
 
 Asynchronous job processing for Vautrin OS (VOS-005, ADR-009).
 
-A NestJS **standalone context** — it consumes BullMQ queues and exposes no
-HTTP port (SDD-02 §3).
+A NestJS **standalone context** — it registers BullMQ queues and exposes no
+HTTP port (SDD-02 §3). The first processor consumes durable events and creates
+pending workflow runs; step execution and provider actions are still pending.
 
 ## Run
 
@@ -17,9 +18,12 @@ pnpm --filter @vautrin/worker dev
 Four logical queues (ADR-009), because these workloads behave differently and
 one shared queue would let any of them starve the others:
 
+The names, retry defaults, Redis connection, and tenant-bearing event-job
+contract now come from `@vautrin/queues` (VOS-012).
+
 | Queue | Carries |
 |---|---|
-| `workflow` | Workflow steps, including delayed ones (SDD-07 §9) |
+| `workflow` | Durable events now; workflow steps, including delayed ones, when implemented (SDD-07 §9) |
 | `ai` | Agent runs and embedding work (SDD-06) |
 | `notifications` | Outbound messages through provider adapters |
 | `webhooks` | Inbound provider callbacks (SDD-08 §5) |
@@ -32,8 +36,8 @@ source.
 ## Tenant context in jobs
 
 A job has no ambient request, so the tenant travels in the payload and is
-validated on arrival (SDD-05 §5 — "a worker must never infer tenant context
-from mutable global process state"):
+validated by each processor on arrival (SDD-05 §5 — "a worker must
+never infer tenant context from mutable global process state"):
 
 ```ts
 await this.database.withJobTenant(job.data, async (tx, context) => {
@@ -61,7 +65,14 @@ resuming, and the worker silently stops consuming.
 
 ## Not here yet
 
-Processors. They arrive with their own backlog items: workflow execution
-(VOS-083), wait and condition steps (VOS-084/085), outbound messaging
-(VOS-086), agent invocation (VOS-087), webhook ingestion (VOS-064). The worker
+The dispatcher polls unpublished events in bounded batches, discovers only
+pending tenant IDs through a narrow database function, claims each tenant's
+events under RLS using `FOR UPDATE SKIP LOCKED`, and marks them published only
+after BullMQ accepts the job. Polling also recovers events left pending after
+a crash or Redis outage. Jobs have stable IDs; a unique PostgreSQL workflow-run
+idempotency key prevents duplicate run creation on at-least-once delivery.
+Dispatch logs scanned/enqueued/replayed/failed counts and oldest-pending age.
+
+Workflow step execution, wait and condition steps (VOS-084/085), outbound messaging
+(VOS-086), agent invocation (VOS-087), and webhook ingestion (VOS-064) remain pending. The worker
 Dockerfile is present (VOS-023); structured logging remains pending (VOS-120).
