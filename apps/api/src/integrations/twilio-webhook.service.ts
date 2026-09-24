@@ -37,6 +37,10 @@ export class TwilioWebhookService {
     fields: Readonly<Record<string, string>>,
     signature: string,
   ): Promise<void> {
+    // Before signature validation there is no trusted tenant context. This
+    // SECURITY DEFINER lookup returns only the addressed integration's routing
+    // metadata; the inbound message is persisted later under withTenant().
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     const [target] = await this.database.unscoped.$queryRaw<WebhookTarget[]>(
       Prisma.sql`SELECT * FROM app.twilio_webhook_target(${integrationId}::uuid)`,
     );

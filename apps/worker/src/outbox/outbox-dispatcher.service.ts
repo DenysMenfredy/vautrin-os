@@ -62,6 +62,10 @@ export class OutboxDispatcher implements OnModuleDestroy {
   }
 
   async dispatchOnce(): Promise<DispatchMetrics> {
+    // Discovery has no tenant context yet. The SECURITY DEFINER function
+    // returns only bounded tenant IDs and oldest timestamps; event rows are
+    // claimed below inside withJobTenant() under RLS.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
     const candidates = await this.database.unscoped.$queryRaw<PendingTenant[]>(
       Prisma.sql`SELECT tenant_id, oldest_at FROM app.pending_event_tenants(${TENANT_BATCH_SIZE}::integer)`,
     );
