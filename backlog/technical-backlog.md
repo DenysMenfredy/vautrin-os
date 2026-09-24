@@ -192,19 +192,19 @@ Read/write/delete isolation.
 **Status:** PARTIAL — channel-independent tenant Conversation model and authenticated list/read/create/status APIs, with contact/lead validation, audit, cursor pagination, and cross-tenant tests. Provider ingestion, assignment and unified inbox behavior remain.
 
 ### VOS-061 [P1] Message entity
-**Status:** PARTIAL — tenant Message model and paginated read API, provider event/message and idempotency uniqueness, and transactional inbound ingestion with address normalization, deduplication, audit, and `message.received` outbox event. The Twilio SMS webhook reaches this path. Outbound delivery lifecycle remains.
+**Status:** PARTIAL — tenant Message model and paginated read API, provider event/message and idempotency uniqueness, transactional inbound ingestion, and an idempotent outbound request stored with its audit and outbox event. The worker claims queued messages, checks suppression, and records provider acceptance/status callbacks. Automated coverage for the new outbound lifecycle and stale unknown outcomes remain.
 
 ### VOS-062 [P1] Messaging provider interface
-**Status:** DONE — `@vautrin/integrations` defines provider-neutral send and inbound webhook contracts; domain code does not import the Twilio SDK.
+**Status:** DONE — `@vautrin/integrations` defines provider-neutral send, inbound webhook, and status callback contracts; domain code does not import the Twilio SDK.
 
 ### VOS-063 [P1] First messaging provider adapter
-**Status:** PARTIAL — the official Twilio Node SDK adapter validates signed inbound SMS and implements a send operation with per-tenant credentials. No send-time opt-out enforcement, durable outbound claim, or production send workflow is wired yet.
+**Status:** PARTIAL — official Twilio Node SDK adapter validates signed inbound/status callbacks and sends through per-tenant credentials. Worker wiring includes known-429 bounded retry and avoids retrying uncertain outcomes; automated coverage and live staging remain.
 
 ### VOS-064 [P1] Webhook ingestion
-**Status:** PARTIAL — a provisioned integration resolves the tenant and exact public HTTPS callback URL; Twilio signature, account and recipient are checked before tenant-scoped transactional persistence. Integration tests cover forgery, replay, and cross-tenant rejection. Delivery-status callbacks, operational reconciliation, and live provider staging remain.
+**Status:** PARTIAL — inbound delivery and outbound status callbacks resolve the provisioned integration, validate the exact HTTPS callback URL and Twilio signature, then persist under tenant RLS. Existing integration coverage verifies inbound forgery, replay, and cross-tenant rejection; status-callback coverage, stale-outcome reconciliation, and live provider staging remain.
 
 ### VOS-065 [P1] Unified inbox API
-List/view/respond.
+**Status:** PARTIAL — tenant-scoped conversation/message list and view APIs plus an idempotent outbound SMS response endpoint are available. A web inbox UI and automated coverage of the response path remain.
 
 ---
 

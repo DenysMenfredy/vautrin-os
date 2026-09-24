@@ -24,6 +24,15 @@ export type DomainEventV1 =
         readonly conversationId: string;
         readonly contactId: string;
       };
+    }
+  | {
+      readonly name: 'message.send_requested';
+      readonly version: 1;
+      readonly payload: {
+        readonly messageId: string;
+        readonly conversationId: string;
+        readonly contactId: string;
+      };
     };
 
 export function leadCreatedEvent(leadId: string, contactId: string): DomainEventV1 {
@@ -45,6 +54,18 @@ export function messageReceivedEvent(
 ): DomainEventV1 {
   return {
     name: 'message.received',
+    version: 1,
+    payload: { messageId, conversationId, contactId },
+  };
+}
+
+export function messageSendRequestedEvent(
+  messageId: string,
+  conversationId: string,
+  contactId: string,
+): DomainEventV1 {
+  return {
+    name: 'message.send_requested',
     version: 1,
     payload: { messageId, conversationId, contactId },
   };
@@ -74,6 +95,14 @@ export function parseDomainEvent(value: unknown): DomainEventV1 {
     isUuid(payload.contactId)
   ) {
     return messageReceivedEvent(payload.messageId, payload.conversationId, payload.contactId);
+  }
+  if (
+    value.name === 'message.send_requested' &&
+    isUuid(payload.messageId) &&
+    isUuid(payload.conversationId) &&
+    isUuid(payload.contactId)
+  ) {
+    return messageSendRequestedEvent(payload.messageId, payload.conversationId, payload.contactId);
   }
   throw new Error('Unsupported event name or payload.');
 }

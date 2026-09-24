@@ -5,6 +5,7 @@ import {
   MessagingProviderError,
   type NormalizedInboundMessage,
   TwilioMessagingProvider,
+  twilioStatusCallbackUrl,
 } from '@vautrin/integrations';
 
 import { ENVIRONMENT } from '../config/environment.module.js';
@@ -99,5 +100,67 @@ export class TwilioWebhookService {
       toAddress: message.toAddress,
       body: message.body,
     });
+  }
+
+  async receiveStatus(
+    integrationId: string,
+    messageId: string,
+    originalUrl: string,
+    fields: Readonly<Record<string, string>>,
+    signature: string,
+  ): Promise<void> {
+    // As with inbound callbacks, this narrowly scoped function discovers the
+    // tenant only for the addressed, provisioned integration.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
+    const [target] = await this.database.unscoped.$queryRaw<WebhookTarget[]>(
+      Prisma.sql`SELECT * FROM app.twilio_webhook_target(${integrationId}::uuid)`,
+    );
+    if (!target?.account_sid || !target.webhook_url || !target.credentials_ref) {
+      throw new ForbiddenException('Webhook rejected.');
+    }
+
+    let expectedUrl: URL;
+    try {
+      expectedUrl = new URL(twilioStatusCallbackUrl(target.webhook_url, messageId));
+    } catch {
+      throw new ForbiddenException('Webhook rejected.');
+    }
+    const prefix = this.environment.API_GLOBAL_PREFIX.replace(/^\/+|\/+$/g, '');
+    const expectedPath = `${prefix ? `/${prefix}` : ''}/webhooks/twilio/status/${integrationId}`;
+    if (
+      expectedUrl.pathname !== expectedPath ||
+      `${expectedUrl.pathname}${expectedUrl.search}` !== originalUrl
+    ) {
+      throw new ForbiddenException('Webhook rejected.');
+    }
+
+    const credentials = await this.integrations.resolve(target.tenant_id, target.integration_id);
+    if (
+      !this.provider.validateInboundWebhook(
+        { url: expectedUrl.toString(), signature, fields },
+        credentials.webhookAuthToken,
+      )
+    ) {
+      throw new ForbiddenException('Webhook rejected.');
+    }
+
+    let status: ReturnType<TwilioMessagingProvider['normalizeStatusWebhook']>;
+    try {
+      status = this.provider.normalizeStatusWebhook(fields);
+    } catch (error) {
+      if (error instanceof MessagingProviderError) {
+        throw new BadRequestException('Invalid delivery status callback.');
+      }
+      throw error;
+    }
+    if (status.providerAccountId !== target.account_sid) {
+      throw new ForbiddenException('Webhook rejected.');
+    }
+    await this.conversations.recordDeliveryStatusFromWebhook(
+      target.tenant_id,
+      messageId,
+      target.integration_id,
+      status,
+    );
   }
 }

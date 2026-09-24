@@ -34,17 +34,32 @@ export interface NormalizedInboundMessage {
   readonly channel: 'SMS';
 }
 
+export interface NormalizedMessageStatus {
+  readonly providerMessageId: string;
+  readonly providerAccountId: string;
+  readonly fromAddress: string;
+  readonly toAddress: string;
+  readonly status: 'QUEUED' | 'SENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
+  /** Safe provider error code only; never include raw provider descriptions. */
+  readonly failureReason: string | null;
+}
+
 export interface MessagingProvider {
   sendText(input: SendTextInput): Promise<SendTextResult>;
   validateInboundWebhook(input: InboundWebhookRequest, authToken: string): boolean;
   normalizeInboundWebhook(fields: Readonly<Record<string, string>>): NormalizedInboundMessage;
+  normalizeStatusWebhook(fields: Readonly<Record<string, string>>): NormalizedMessageStatus;
 }
 
 /** Never include customer body or credentials in a provider error. */
 export class MessagingProviderError extends Error {
   override readonly name = 'MessagingProviderError';
 
-  constructor(readonly code: string) {
+  constructor(
+    readonly code: string,
+    readonly retryable = false,
+    readonly outcomeUnknown = false,
+  ) {
     super(`Messaging provider operation failed: ${code}`);
   }
 }

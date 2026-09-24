@@ -7,6 +7,7 @@ import {
   type ConversationStatus,
   type CreateConversationRequest,
   type ListConversationsRequest,
+  type SendMessageRequest,
 } from '@vautrin/contracts';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, IsString, IsUUID, Max, MaxLength, Min } from 'class-validator';
@@ -88,4 +89,15 @@ export class ChangeConversationStatusDto implements ChangeConversationStatusRequ
   @ApiProperty({ enum: CONVERSATION_STATUSES })
   @IsIn(CONVERSATION_STATUSES)
   declare status: ConversationStatus;
+}
+
+export class SendMessageDto implements SendMessageRequest {
+  @ApiProperty({ maxLength: 1600 })
+  @IsString()
+  @MaxLength(1600)
+  declare body: string;
+
+  @ApiProperty({ format: 'uuid', description: 'Reuse this key when retrying the request.' })
+  @IsUUID()
+  declare idempotencyKey: string;
 }

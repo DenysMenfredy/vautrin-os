@@ -1,13 +1,16 @@
-import { OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { getQueueToken, OnWorkerEvent, Processor, WorkerHost } from '@nestjs/bullmq';
+import { Inject, Logger } from '@nestjs/common';
 import { parseDomainEvent } from '@vautrin/contracts';
 import {
   assertDurableEventJob,
   DOMAIN_EVENT_JOB,
   type DurableEventJob,
   QUEUE,
+  SEND_MESSAGE_JOB,
+  type SendMessageJob,
+  sendMessageJobId,
 } from '@vautrin/queues';
-import type { Job } from 'bullmq';
+import type { Job, Queue } from 'bullmq';
 
 import { DatabaseService } from '../database/database.service.js';
 
@@ -16,7 +19,11 @@ import { DatabaseService } from '../database/database.service.js';
 export class DomainEventProcessor extends WorkerHost {
   private readonly logger = new Logger(DomainEventProcessor.name);
 
-  constructor(private readonly database: DatabaseService) {
+  constructor(
+    private readonly database: DatabaseService,
+    @Inject(getQueueToken(QUEUE.NOTIFICATIONS))
+    private readonly notifications: Queue<SendMessageJob>,
+  ) {
     super();
   }
 
@@ -32,7 +39,35 @@ export class DomainEventProcessor extends WorkerHost {
         where: { id: data.eventId, tenantId: context.tenantId },
       });
       if (!event) throw new Error('Event not found in job tenant.');
-      parseDomainEvent({ name: event.name, version: event.version, payload: event.payload });
+      const domainEvent = parseDomainEvent({
+        name: event.name,
+        version: event.version,
+        payload: event.payload,
+      });
+      if (domainEvent.name === 'message.send_requested') {
+        const message = await tx.message.findFirst({
+          where: {
+            id: domainEvent.payload.messageId,
+            tenantId: context.tenantId,
+            conversationId: domainEvent.payload.conversationId,
+          },
+          select: { id: true, status: true },
+        });
+        if (!message) throw new Error('Outbound message was not found in the event tenant.');
+        if (message.status === 'QUEUED') {
+          await this.notifications.add(
+            SEND_MESSAGE_JOB,
+            {
+              tenantId: context.tenantId,
+              messageId: message.id,
+              ...(event.correlationId ? { correlationId: event.correlationId } : {}),
+              ...(event.idempotencyKey ? { idempotencyKey: event.idempotencyKey } : {}),
+            },
+            { jobId: sendMessageJobId(message.id) },
+          );
+        }
+        return { created: 0, replayed: 0 };
+      }
 
       const workflows = await tx.workflow.findMany({
         where: { tenantId: context.tenantId, trigger: event.name, status: 'ACTIVE' },

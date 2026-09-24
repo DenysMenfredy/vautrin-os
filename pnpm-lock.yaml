@@ -178,6 +178,9 @@ importers:
       '@vautrin/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@vautrin/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
       '@vautrin/queues':
         specifier: workspace:*
         version: link:../../packages/queues

@@ -4,6 +4,7 @@ import type {
   InboundWebhookRequest,
   MessagingProvider,
   NormalizedInboundMessage,
+  NormalizedMessageStatus,
   SendTextInput,
   SendTextResult,
 } from './messaging-provider.js';
@@ -14,6 +15,30 @@ const KEY_SID = /^SK[0-9a-f]{32}$/i;
 const SERVICE_SID = /^MG[0-9a-f]{32}$/i;
 const MESSAGE_SID = /^SM[0-9a-f]{32}$/i;
 const PHONE = /^\+[1-9]\d{1,14}$/;
+const INBOUND_WEBHOOK_PATH = /\/webhooks\/twilio\/inbound\/([0-9a-f-]{36})$/i;
+
+/** Derive the signed status callback from the provisioned inbound URL. */
+export function twilioStatusCallbackUrl(inboundWebhookUrl: string, messageId: string): string {
+  let url: URL;
+  try {
+    url = new URL(inboundWebhookUrl);
+  } catch {
+    throw new MessagingProviderError('invalid_webhook_url');
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    !INBOUND_WEBHOOK_PATH.test(url.pathname) ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(messageId)
+  ) {
+    throw new MessagingProviderError('invalid_webhook_url');
+  }
+  url.pathname = url.pathname.replace('/inbound/', '/status/');
+  url.searchParams.set('messageId', messageId);
+  return url.toString();
+}
 
 /** One credential set and Messaging Service per tenant Twilio subaccount. */
 export interface TwilioCredentials {
@@ -62,7 +87,7 @@ export class TwilioMessagingProvider implements MessagingProvider {
       return {
         provider: 'twilio',
         providerMessageId: message.sid,
-        status: normalizeStatus(message.status),
+        status: normalizeSendStatus(message.status),
       };
     } catch (error) {
       if (error instanceof MessagingProviderError) throw error;
@@ -73,9 +98,19 @@ export class TwilioMessagingProvider implements MessagingProvider {
         typeof error.code === 'number'
           ? String(error.code)
           : 'send_unknown';
+      const retryable =
+        typeof error === 'object' && error !== null && 'status' in error && error.status === 429;
+      const httpStatus =
+        typeof error === 'object' &&
+        error !== null &&
+        'status' in error &&
+        typeof error.status === 'number'
+          ? error.status
+          : null;
+      const outcomeUnknown = httpStatus === null || httpStatus >= 500;
       // A timed-out create may have succeeded. Callers must not blindly retry
       // an unknown result because Twilio Message create has no idempotency key.
-      throw new MessagingProviderError(code);
+      throw new MessagingProviderError(code, retryable, outcomeUnknown);
     }
   }
 
@@ -115,6 +150,43 @@ export class TwilioMessagingProvider implements MessagingProvider {
       channel: 'SMS',
     };
   }
+
+  normalizeStatusWebhook(fields: Readonly<Record<string, string>>): NormalizedMessageStatus {
+    const accountSid = fields.AccountSid;
+    const messageSid = fields.MessageSid;
+    const fromAddress = fields.From;
+    const toAddress = fields.To;
+    const rawStatus = fields.MessageStatus;
+    if (
+      !accountSid ||
+      !ACCOUNT_SID.test(accountSid) ||
+      !messageSid ||
+      !MESSAGE_SID.test(messageSid) ||
+      !fromAddress ||
+      !PHONE.test(fromAddress) ||
+      !toAddress ||
+      !PHONE.test(toAddress) ||
+      !rawStatus
+    ) {
+      throw new MessagingProviderError('invalid_status_payload');
+    }
+
+    const status = normalizeStatus(rawStatus);
+    const errorCode = fields.ErrorCode;
+    return {
+      providerMessageId: messageSid,
+      providerAccountId: accountSid,
+      fromAddress,
+      toAddress,
+      status,
+      failureReason:
+        status === 'FAILED'
+          ? errorCode && /^\d{1,10}$/.test(errorCode)
+            ? `twilio:${errorCode}`
+            : 'provider_delivery_failed'
+          : null,
+    };
+  }
 }
 
 function assertCredentials(credentials: TwilioCredentials): void {
@@ -129,7 +201,13 @@ function assertCredentials(credentials: TwilioCredentials): void {
   }
 }
 
-function normalizeStatus(status: string): SendTextResult['status'] {
+function normalizeSendStatus(status: string): SendTextResult['status'] {
+  const normalized = normalizeStatus(status);
+  if (normalized === 'READ') throw new MessagingProviderError('invalid_send_response');
+  return normalized;
+}
+
+function normalizeStatus(status: string): NormalizedMessageStatus['status'] {
   switch (status) {
     case 'accepted':
     case 'scheduled':
@@ -141,8 +219,11 @@ function normalizeStatus(status: string): SendTextResult['status'] {
       return 'SENT';
     case 'delivered':
       return 'DELIVERED';
+    case 'read':
+      return 'READ';
     case 'failed':
     case 'undelivered':
+    case 'canceled':
       return 'FAILED';
     default:
       throw new MessagingProviderError('invalid_send_response');

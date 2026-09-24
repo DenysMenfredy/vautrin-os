@@ -21,6 +21,7 @@
     "@vautrin/config": "workspace:*",
     "@vautrin/contracts": "workspace:*",
     "@vautrin/database": "workspace:*",
+    "@vautrin/integrations": "workspace:*",
     "@vautrin/queues": "workspace:*",
     "bullmq": "^6.3.8",
     "ioredis": "^6.0.0",

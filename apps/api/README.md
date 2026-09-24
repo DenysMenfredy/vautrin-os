@@ -45,7 +45,9 @@ pnpm --filter @vautrin/api dev
 | `GET /api/conversations/:conversationId` | Read a tenant conversation |
 | `PATCH /api/conversations/:conversationId/status` | Change conversation status |
 | `GET /api/conversations/:conversationId/messages` | List messages in a tenant conversation |
+| `POST /api/conversations/:conversationId/messages` | Persist and queue an outbound SMS (idempotency key required) |
 | `POST /api/webhooks/twilio/inbound/:integrationId` | Signature-verified, provisioned Twilio SMS inbound callback (204 on success) |
+| `POST /api/webhooks/twilio/status/:integrationId?messageId=...` | Signature-verified outbound delivery status callback (204 on success) |
 | `GET /api/docs` | OpenAPI UI (non-production only) |
 | `GET /api/docs-json` | OpenAPI document (non-production only) |
 
@@ -64,12 +66,13 @@ src/
 `app.module.ts` wires the implemented Auth, Tenant, Audit, Health, and Database
 modules. Business Configuration now provides profile, location, service, and
 service-area APIs. Contacts and Leads provide tenant-scoped CRUD, search, and
-cursor pagination. Conversations provide tenant-scoped read/open/status and
-message-list APIs. The Twilio SMS inbound webhook deduplicates provider event/message IDs,
+cursor pagination. Conversations provide tenant-scoped read/open/status,
+message-list, and idempotent outbound-SMS APIs. The Twilio SMS inbound webhook
+deduplicates provider event/message IDs,
 atomically records `message.received`, and records an SMS/WhatsApp STOP as a
-tenant-scoped communication suppression before any AI processing. No public
-outbound send endpoint exists yet; this suppression is not
-a substitute for a reviewed legal consent policy.
+tenant-scoped communication suppression before any AI processing. Outbound
+sends use the durable outbox and worker-time suppression check; this technical
+suppression is not a substitute for a reviewed legal consent policy.
 Appointment, Estimate,
 Workflow, Agent, Knowledge, Integration management, and Analytics HTTP features remain
 future work.
@@ -161,13 +164,17 @@ order in SDD-01 §4; WON and LOST are terminal. Lead creation and transitions
 write versioned outbox events together with the lead and audit record.
 `/crm/dashboard` counts only unarchived leads in the active tenant.
 
-Conversation reads require `conversation.read`; creation and status changes
-require `conversation.write`. A new conversation must reference an active
+Conversation reads require `conversation.read`; creation, status changes, and
+outbound messages require `conversation.write`. A new conversation must reference an active
 contact and, when supplied, a lead belonging to that contact in the active
 tenant. Conversation and message lists use the same opaque cursor contract as
-CRM. The message API remains read-only while an outbound worker and send-time
-suppression checks are implemented. The Twilio inbound webhook is the only
-provider mutation path currently exposed.
+CRM. An outbound SMS requires a UUID `idempotencyKey`, an SMS conversation, a
+contact phone number in E.164 format, and one active Twilio sender. The API
+stores the message, audit entry, and versioned send-request event atomically.
+The worker re-checks opt-out state immediately before sending and uses the
+`notifications` queue. Known Twilio HTTP 429 rejections use bounded retries;
+uncertain network outcomes are not resent and await the signed status callback.
+Delivery callbacks are bound to the local message ID and provisioned integration.
 
 ## Twilio inbound SMS setup
 
@@ -185,20 +192,20 @@ any query string identical between Twilio and the configuration. It must not
 be an internal proxy URL.
 
 Set `credentialsRef` to a tenant-specific environment reference such as
-`env:VAUTRIN_TWILIO_TENANT_A`. Inject that variable from Secret Manager as
-JSON with `accountSid`, `apiKeySid`, `apiKeySecret`, `webhookAuthToken`, and
-`messagingServiceSid`. Do not place the JSON or tokens in the database,
-repository, or Bruno collection. The API key authenticates REST sends; the
-subaccount Auth Token validates inbound signatures. Twilio must POST its full
+`env:VAUTRIN_TWILIO_TENANT_A`. Inject that variable from Secret Manager into
+both the API and worker processes as JSON with `accountSid`, `apiKeySid`,
+`apiKeySecret`, `webhookAuthToken`, and `messagingServiceSid`. Do not place the
+JSON or tokens in the database, repository, or Bruno collection. The worker's
+API key authenticates REST sends; the subaccount Auth Token validates inbound
+and status-callback signatures. Twilio must POST its full
 form body and `X-Twilio-Signature` header to the configured URL. The API
 rejects a wrong path/query, signature, Account SID, or recipient number before
 writing tenant data. Replays are acknowledged without duplicating the message.
 
-The adapter exposes a send operation but no production outbound coordinator
-calls it yet. Do not enable automated sending until the database-backed send
-claim, opt-out enforcement, delivery status, and provider-failure handling are
-complete. Complete applicable sender registration and consent review before
-live traffic.
+The status callback URL is derived from the configured inbound URL by changing
+`/inbound/` to `/status/` and adding the local message ID query parameter; no
+second callback URL needs to be provisioned. Complete applicable sender
+registration and consent review before live traffic.
 
 The Google Calendar adapter and OAuth refresh client live in
 `@vautrin/integrations`; they are not yet an appointment API. The API's

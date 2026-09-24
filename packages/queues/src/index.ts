@@ -11,6 +11,7 @@ export const QUEUE = {
 export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 export const ALL_QUEUES: readonly QueueName[] = Object.values(QUEUE);
 export const DOMAIN_EVENT_JOB = 'domain.event';
+export const SEND_MESSAGE_JOB = 'message.send';
 
 /** Bounded retry policy for jobs; each side effect still needs idempotency. */
 export const DEFAULT_JOB_OPTIONS = {
@@ -32,6 +33,27 @@ export interface TenantQueueJob {
 /** A durable outbox event delivered to a future workflow processor. */
 export interface DurableEventJob extends TenantQueueJob {
   readonly eventId: string;
+}
+
+export interface SendMessageJob extends TenantQueueJob {
+  readonly messageId: string;
+}
+
+export function sendMessageJobId(messageId: string): string {
+  if (!isUuid(messageId)) throw new Error('messageId must be a UUID.');
+  return `message-${messageId}`;
+}
+
+export function assertSendMessageJob(value: unknown): asserts value is SendMessageJob {
+  if (!isRecord(value) || !isUuid(value.tenantId) || !isUuid(value.messageId)) {
+    throw new Error('A send message job requires tenantId and messageId UUIDs.');
+  }
+  if (value.correlationId !== undefined && !isUuid(value.correlationId)) {
+    throw new Error('correlationId must be a UUID.');
+  }
+  if (value.idempotencyKey !== undefined && typeof value.idempotencyKey !== 'string') {
+    throw new Error('idempotencyKey must be a string.');
+  }
 }
 
 /** Stable across crashes, retries, and competing dispatchers. */

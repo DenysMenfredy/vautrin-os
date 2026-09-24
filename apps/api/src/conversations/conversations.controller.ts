@@ -4,6 +4,7 @@ import type {
   ConversationPageResponse,
   ConversationResponse,
   MessagePageResponse,
+  MessageResponse,
 } from '@vautrin/contracts';
 
 import type { AuthenticatedRequestContext } from '../auth/decorators/current-auth.decorator.js';
@@ -15,6 +16,7 @@ import {
   CreateConversationDto,
   ListConversationsDto,
   ListMessagesDto,
+  SendMessageDto,
 } from './dto/conversations.dto.js';
 
 @ApiTags('conversations')
@@ -74,5 +76,17 @@ export class ConversationsController {
     @Query() query: ListMessagesDto,
   ): Promise<MessagePageResponse> {
     return this.conversations.listMessages(tenantId, conversationId, query);
+  }
+
+  @Post(':conversationId/messages')
+  @RequireCapability('conversation.write')
+  @ApiOperation({ summary: 'Queue an outbound SMS for a tenant conversation' })
+  sendMessage(
+    @ActiveTenant() tenantId: string,
+    @CurrentAuth() auth: AuthenticatedRequestContext,
+    @Param('conversationId', new ParseUUIDPipe()) conversationId: string,
+    @Body() input: SendMessageDto,
+  ): Promise<MessageResponse> {
+    return this.conversations.sendMessage(tenantId, auth.userId, conversationId, input);
   }
 }

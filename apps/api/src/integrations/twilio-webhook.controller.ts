@@ -5,6 +5,7 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
   Req,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
@@ -35,6 +36,27 @@ export class TwilioWebhookController {
       integrationId,
       request.originalUrl,
       fields,
+      request.header('x-twilio-signature') ?? '',
+    );
+  }
+
+  @Public()
+  @Post('status/:integrationId')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Authenticated Twilio outbound-message status callback' })
+  async status(
+    @Param('integrationId', new ParseUUIDPipe()) integrationId: string,
+    @Query('messageId', new ParseUUIDPipe()) messageId: string,
+    @Req() request: Request,
+  ): Promise<void> {
+    if (!request.is('application/x-www-form-urlencoded')) {
+      throw new UnsupportedMediaTypeException('Expected form-encoded webhook.');
+    }
+    await this.webhooks.receiveStatus(
+      integrationId,
+      messageId,
+      request.originalUrl,
+      formFields(request.body),
       request.header('x-twilio-signature') ?? '',
     );
   }

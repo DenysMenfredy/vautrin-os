@@ -47,6 +47,12 @@ export interface ChangeConversationStatusRequest {
   readonly status: ConversationStatus;
 }
 
+export interface SendMessageRequest {
+  readonly body: string;
+  /** Client-generated UUID reused for retries of this send request. */
+  readonly idempotencyKey: string;
+}
+
 export type ConversationPageResponse = PageResponse<ConversationResponse>;
 
 export interface MessageResponse {
