@@ -359,6 +359,7 @@ model Tenant {
   businessProfile        BusinessProfile?
   locations              Location[]
   contacts               Contact[]
+  contactChannelPreferences ContactChannelPreference[]
   leads                  Lead[]
   leadSources            LeadSource[]
   conversations          Conversation[]
@@ -606,6 +607,7 @@ model Contact {
 
   tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   leads         Lead[]
+  channelPreferences ContactChannelPreference[]
   conversations Conversation[]
   calls         Call[]
   appointments  Appointment[]
@@ -615,6 +617,26 @@ model Contact {
   @@index([tenantId, email])
   @@index([tenantId, createdAt])
   @@map("contacts")
+}
+
+/// V0.3 technical communication suppression, independent of legal consent policy.
+model ContactChannelPreference {
+  id            String    @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId      String    @map("tenant_id") @db.Uuid
+  contactId     String    @map("contact_id") @db.Uuid
+  channel       Channel
+  optedOutAt    DateTime? @map("opted_out_at") @db.Timestamptz(6)
+  source        String?
+  sourceEventId String?   @map("source_event_id")
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, contactId, channel])
+  @@index([tenantId, channel, optedOutAt])
+  @@map("contact_channel_preferences")
 }
 
 /// VOS-052 — tenant-owned catalog so a vertical template can seed its own set
@@ -643,7 +665,7 @@ model Lead {
   contactId      String     @map("contact_id") @db.Uuid
   status         LeadStatus @default(NEW)
   sourceId       String?    @map("source_id") @db.Uuid
-  /// Requested-service snapshot; catalog linking belongs to the CRM slice (VOS-051).
+  /// Requested-service key snapshot; CRM validates the active tenant catalog entry on write.
   service        String?
   assignedUserId String?    @map("assigned_user_id") @db.Uuid
   title          String?
@@ -728,6 +750,11 @@ model Message {
   /// Provider message id. Combined with tenant+provider this is the natural
   /// dedup key for webhook ingestion (SDD-08 §5).
   providerMessageId String?       @map("provider_message_id")
+  /// Distinct from providerMessageId: one provider may send multiple events
+  /// for the same message (received, delivered, etc.).
+  providerEventId String?         @map("provider_event_id")
+  correlationId String?           @map("correlation_id") @db.Uuid
+  idempotencyKey String?          @map("idempotency_key")
   /// Set when an outbound message was produced by an agent (SDD-10 §6).
   agentRunId     String?          @map("agent_run_id") @db.Uuid
   sentAt         DateTime?        @map("sent_at") @db.Timestamptz(6)
@@ -743,8 +770,11 @@ model Message {
   agentRun     AgentRun?    @relation(fields: [agentRunId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, provider, providerMessageId])
+  @@unique([tenantId, provider, providerEventId])
+  @@unique([tenantId, idempotencyKey])
   @@index([tenantId, conversationId, createdAt])
   @@index([tenantId, status])
+  @@index([tenantId, correlationId])
   @@map("messages")
 }
 

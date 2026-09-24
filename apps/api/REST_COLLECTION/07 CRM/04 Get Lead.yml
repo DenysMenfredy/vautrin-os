@@ -1,0 +1,22 @@
+info:
+  name: Get Lead
+  type: http
+  seq: 4
+  tags:
+    - crm
+    - leads
+http:
+  method: GET
+  url: '{{baseUrl}}/leads/{{leadId}}'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('reads the active tenant lead', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.id).to.equal(bru.getVar('leadId'));
+          expect(res.body).not.to.have.property('tenantId');
+        });

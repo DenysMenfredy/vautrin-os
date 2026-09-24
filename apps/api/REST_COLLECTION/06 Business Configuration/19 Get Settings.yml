@@ -1,0 +1,23 @@
+info:
+  name: Get Business Settings
+  type: http
+  seq: 19
+  tags:
+    - business
+    - configuration
+http:
+  method: GET
+  url: '{{baseUrl}}/business/settings'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('returns manager-only tenant settings', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.bookingRules).to.be.an('object');
+          expect(res.body.qualificationRules).to.be.an('object');
+          expect(res.body.aiConfiguration).to.be.an('object');
+        });

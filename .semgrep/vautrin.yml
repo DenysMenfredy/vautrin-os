@@ -45,10 +45,10 @@ rules:
     languages: [typescript]
     severity: WARNING
     message: >-
-      `.unscoped` reaches the database with no tenant context, so RLS returns
-      nothing for tenant-scoped tables and any read here silently sees zero
-      rows. Valid only for health probes and the authentication lookup that
-      runs before a tenant is known. Otherwise use withTenant().
+      `.unscoped` sets no tenant context, so direct reads of tenant-scoped
+      tables are hidden by RLS. Use it only for health/global identity access
+      or reviewed SECURITY DEFINER discovery functions with bounded metadata;
+      otherwise use withTenant().
     patterns:
       - pattern: $DB.unscoped
       - pattern-not-inside: |

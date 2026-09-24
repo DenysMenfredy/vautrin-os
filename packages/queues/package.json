@@ -1,0 +1,34 @@
+{
+  "name": "@vautrin/queues",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared BullMQ queue names, defaults, and Redis connection (ADR-009)",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@vautrin/testing": "workspace:*",
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0",
+    "vitest": "4.1.11"
+  }
+}

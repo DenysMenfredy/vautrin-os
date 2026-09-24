@@ -115,6 +115,10 @@ Do not rely on in-memory timers.
 
 Published workflow versions are immutable.
 
+The database stamps `published_at` when a draft is activated and rejects
+changes to the definition, trigger, policies, or version after publication.
+Pause/archive only changes activation state; editing requires a new row/version.
+
 A new configuration creates a new version.
 
 Existing workflow runs continue using the version with which they started.

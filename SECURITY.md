@@ -32,11 +32,14 @@ secret, and the key is not added to build-task environments.
 
 The unscoped-access rule remains blocking. Reviewed call sites use
 `nosemgrep: semgrep.vautrin-unscoped-database-access` with an adjacent reason:
-global user and refresh-token operations follow SDD-04 §3 / ADR-013, while
-tenant bootstrap establishes transaction-local tenant context before tenant
-writes. These exceptions do not bypass PostgreSQL RLS and do not exclude
-the containing files or other security rules. New unscoped accesses still
-require review. See [Semgrep's scoped annotation documentation](https://docs.semgrep.dev/ignoring-files-folders-code#ignore-code-through-nosemgrep).
+global user and refresh-token operations follow SDD-04 §3 / ADR-013, tenant
+bootstrap establishes transaction-local context before tenant writes, and
+Twilio/outbox discovery call narrowly scoped SECURITY DEFINER functions before
+tenant context exists. Those discovery functions return only routing metadata
+or bounded tenant IDs; subsequent tenant row reads and writes run under RLS.
+These exceptions do not exclude the containing files or other security rules.
+New unscoped accesses still require review. See [Semgrep's scoped annotation
+documentation](https://docs.semgrep.dev/ignoring-files-folders-code#ignore-code-through-nosemgrep).
 
 CI runs `semgrep --test --config .semgrep/vautrin.yml .semgrep/vautrin.ts
 --metrics=off` before scanning application code. Explicit paths ensure that

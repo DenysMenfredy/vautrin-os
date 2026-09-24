@@ -1,0 +1,31 @@
+info:
+  name: Update Business Settings
+  type: http
+  seq: 18
+  tags:
+    - business
+    - configuration
+http:
+  method: PATCH
+  url: '{{baseUrl}}/business/settings'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: |-
+      {
+        "communicationPreferences": {}
+      }
+runtime:
+  scripts:
+    - type: tests
+      code: |-
+        test('updates manager-only tenant settings', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.communicationPreferences).to.be.an('object');
+          expect(res.body).not.to.have.property('tenantId');
+        });

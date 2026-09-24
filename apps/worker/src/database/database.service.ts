@@ -6,6 +6,7 @@ import {
   type PrismaClient,
   type TenantJobContext,
   type TenantScopedClient,
+  type WithTenantOptions,
   withTenant,
 } from '@vautrin/database';
 
@@ -46,9 +47,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   withJobTenant<T>(
     context: unknown,
     fn: (tx: TenantScopedClient, context: TenantJobContext) => Promise<T>,
+    options?: WithTenantOptions,
   ): Promise<T> {
     assertTenantJobContext(context);
-    return withTenant(this.prisma, context.tenantId, (tx) => fn(tx, context));
+    return withTenant(this.prisma, context.tenantId, (tx) => fn(tx, context), options);
   }
 
   /** Tenant-independent access. Health probes and platform maintenance only. */

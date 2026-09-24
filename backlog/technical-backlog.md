@@ -69,7 +69,7 @@ PostgreSQL + pgvector + Redis.
 Prisma configuration, migrations, client.
 
 ### VOS-012 [P0] Redis/BullMQ package
-**Status:** IN_PROGRESS — API/worker queue configuration and four queue registrations exist; shared package acceptance and processors remain.
+**Status:** DONE — `@vautrin/queues` owns the ADR-009 queue names, bounded retry defaults, Redis connection, and tenant-bearing event-job contract. The worker consumes the shared package; Redis roundtrip coverage passes. Feature processors belong to VOS-064/VOS-083/VOS-086/VOS-087.
 Shared queue configuration.
 
 ### VOS-013 [P1] Local email/mock provider
@@ -142,7 +142,7 @@ Read/write/delete isolation.
 ## EPIC E4 — Business configuration
 
 ### VOS-040 [P1] Business profile
-**Status:** DONE — tenant-scoped profile read/create/update API for name, contact details, timezone, locale, and currency, with validation and audit.
+**Status:** DONE — tenant-scoped profile read/create/update API for name, contact details, timezone, locale, and currency; manager-only operational settings API for communication preferences, qualification rules, booking rules, and AI configuration; validation and audit.
 
 ### VOS-041 [P1] Locations
 **Status:** DONE — tenant-scoped CRUD, primary-location serialization, coordinate/timezone validation, cursor pagination, and archive semantics.
@@ -170,38 +170,38 @@ Read/write/delete isolation.
 **Status:** DONE — tenant-scoped contact CRUD, case-insensitive search, cursor pagination, capability checks, audited mutations, soft archive, and tenant-isolation integration coverage.
 
 ### VOS-051 [P1] Leads
-CRUD + pipeline.
+**Status:** DONE — tenant-scoped lead CRUD, filtered cursor pagination, active contact/source/service validation, optimistic concurrency, atomic audit, and a `lead.created` outbox event.
 
 ### VOS-052 [P1] Lead sources
-Google, website, phone, referral, ads, etc.
+**Status:** DONE — tenant-owned source catalog CRUD, search/pagination, deactivation, unique keys, and `business.manage` mutation authorization. No hardcoded source catalog is imposed on vertical templates.
 
 ### VOS-053 [P1] Lead state transitions
-Validate lifecycle transitions.
+**Status:** DONE — forward progression through SDD-01 statuses, terminal WON/LOST, version checks, audit, and versioned outbox events.
 
 ### VOS-054 [P1] Lead assignment
-Owner/staff assignment.
+**Status:** DONE — `lead.assign` gated assignment/unassignment to active owner/admin/manager/staff members of the current tenant, with version checks and audit.
 
 ### VOS-055 [P1] CRM dashboard
-Lead counts and pipeline.
+**Status:** DONE — active-tenant total and per-status counts; archived leads are excluded.
 
 ---
 
 ## EPIC E6 — Conversations
 
 ### VOS-060 [P1] Conversation entity
-Channel-independent thread.
+**Status:** PARTIAL — channel-independent tenant Conversation model and authenticated list/read/create/status APIs, with contact/lead validation, audit, cursor pagination, and cross-tenant tests. Provider ingestion, assignment and unified inbox behavior remain.
 
 ### VOS-061 [P1] Message entity
-Inbound/outbound state.
+**Status:** PARTIAL — tenant Message model and paginated read API, provider event/message and idempotency uniqueness, and transactional inbound ingestion with address normalization, deduplication, audit, and `message.received` outbox event. The Twilio SMS webhook reaches this path. Outbound delivery lifecycle remains.
 
 ### VOS-062 [P1] Messaging provider interface
-No provider-specific domain dependency.
+**Status:** DONE — `@vautrin/integrations` defines provider-neutral send and inbound webhook contracts; domain code does not import the Twilio SDK.
 
 ### VOS-063 [P1] First messaging provider adapter
-Select provider during implementation.
+**Status:** PARTIAL — the official Twilio Node SDK adapter validates signed inbound SMS and implements a send operation with per-tenant credentials. No send-time opt-out enforcement, durable outbound claim, or production send workflow is wired yet.
 
 ### VOS-064 [P1] Webhook ingestion
-Signature validation + deduplication.
+**Status:** PARTIAL — a provisioned integration resolves the tenant and exact public HTTPS callback URL; Twilio signature, account and recipient are checked before tenant-scoped transactional persistence. Integration tests cover forgery, replay, and cross-tenant rejection. Delivery-status callbacks, operational reconciliation, and live provider staging remain.
 
 ### VOS-065 [P1] Unified inbox API
 List/view/respond.
@@ -242,16 +242,17 @@ Agent/tool/provider metadata.
 ## EPIC E8 — Workflow engine
 
 ### VOS-080 [P0] Event model
-Versioned internal event schema.
+**Status:** DONE — versioned `lead.created` and `lead.status_changed` contracts with runtime validation and durable, tenant-scoped outbox rows written with lead state. Outbox dispatch and workflow execution belong to later workflow items.
 
 ### VOS-081 [P1] Workflow definition model
 Versioned workflows.
+**Status:** PARTIAL — PostgreSQL now enforces immutability of published workflow definitions and stamps publication on activation. Definition validation, management API, activation audit, and seeded workflow data remain.
 
 ### VOS-082 [P1] Workflow run model
 Persist execution state.
 
 ### VOS-083 [P1] Workflow worker
-BullMQ execution.
+**Status:** PARTIAL — RLS-safe Event outbox polling/claiming, BullMQ dispatch and idempotent creation of pending workflow runs, with concurrency/replay/failure integration tests. Step execution and workflow completion/failure handling remain.
 
 ### VOS-084 [P1] Wait step
 Delayed jobs.
@@ -276,10 +277,10 @@ Bounded retries + escalation.
 ## EPIC E9 — Appointments
 
 ### VOS-090 [P1] Calendar provider interface
-Availability/create/cancel.
+**Status:** DONE — `@vautrin/integrations` defines tenant-aware availability, create, and cancel operations.
 
 ### VOS-091 [P1] Calendar adapter
-First provider.
+**Status:** PARTIAL — Google Calendar v3 REST adapter queries free/busy and inserts/cancels events, with a stable local appointment ID and conflict check. A tenant-scoped connection resolver refreshes access tokens from an operator-provisioned secret reference. OAuth consent/callback and integration provisioning, plus booking use-case wiring, remain.
 
 ### VOS-092 [P1] Appointment domain
 State and validation.
@@ -487,10 +488,33 @@ P2/P3 candidates:
 
 ## Status corrections
 
-- VOS-121 Audit log: **IN_PROGRESS**. Authentication/authorization coverage exists; remaining mutation/tool/integration/workflow audit surfaces are pending.
-- VOS-012 Redis/BullMQ package: queue registration is implemented in the worker; shared package acceptance and processors remain.
+- VOS-121 Audit log: **IN_PROGRESS**. Authentication/authorization and contact/business/lead mutations are covered; tool/integration/workflow audit surfaces remain.
+- VOS-012 Redis/BullMQ package: the shared package and queue registration are complete; feature processors remain in their respective backlog items.
 - VOS-022 E2E pipeline: authentication and feature integration coverage exists, but the product critical-path E2E pipeline remains TODO.
 
-## Next milestone order
+## V0.2 handoff (historical)
 
-Do not begin the AI/workflow product layer until VOS-037, VOS-038, VOS-039 and VOS-014 are complete. E4 Business Configuration and VOS-050 Contacts are complete; proceed with E5 CRM, beginning with VOS-051 Leads.
+At the end of v0.2, review-pack Gates A–D and Gate E prerequisites (VOS-012 and VOS-080) were implemented: security and documentation corrections, Business Configuration, CRM, shared queues, and the versioned event model. Event dispatch, conversations, messaging, scheduling, estimates, agents, and workflow execution were still open. The subsequent v0.3 pack now governs the next milestone below.
+
+The handoff recommended these implementation slices; current status is tracked in the v0.3 plan below:
+
+1. Dispatch persisted events to a tenant-aware queue consumer with bounded retry, failure visibility, and idempotent handling (VOS-083/088/089; ADR-008/009).
+2. Add channel-independent conversations and messages, then the messaging provider interface, first adapter, validated/deduplicated webhooks, and inbox API (VOS-060–065).
+3. Add the LLM provider abstraction, agent configuration, authorized typed tools, and grounded business context (VOS-070–074); then the remaining knowledge and telemetry work (VOS-075–078).
+4. Complete the workflow definition/run/action capabilities (VOS-081–087), then the receptionist and booking/estimate vertical slice (VOS-090–111) with the specified tests and tenant isolation.
+
+## V0.3 implementation plan (2026-09-23 spec pack)
+
+The v0.3 exit gate is the provider-mocked missed-call-to-booking E2E path plus a production-like GCP staging deployment. This is not implied by the v0.2 event/queue foundation.
+
+1. Reconcile ADR-009 and SDD-12, correct the stale infrastructure guide, and keep Pub/Sub/GKE out of V1.
+2. Implement bounded, oldest-first outbox dispatch to BullMQ with concurrent claims, at-least-once replay safety, durable consumer identity, recovery polling, and dispatch/consumer telemetry.
+3. Build tenant-safe Conversation/Message APIs, a provider-neutral messaging port and one adapter, authenticated/deduplicated webhooks, outbound suppression, and retry-safe sending.
+4. Add PostgreSQL-backed workflow definitions/runs and the minimum condition/wait/message/agent/handoff steps; keep delayed intent recoverable from PostgreSQL.
+5. Add a provider-neutral LLM port, grounded receptionist runtime and authorized typed tools; then a calendar port and idempotent booking.
+6. Seed the remodeling template, implement `missed_call_recovery_v1`, and cover the critical path with deterministic E2E and evaluation cases.
+7. Build static Nuxt deployment and the specified GCP/Terraform staging topology; verify backups, restore, rollback, same-origin auth, and operational dashboards before customer onboarding.
+
+Only the first coherent slices should be marked DONE as they pass their own acceptance tests. Provider selection and production GCP credentials are not specified by the pack and must not be guessed or committed.
+
+Current v0.3 progress: documentation reconciliation, outbox discovery/dispatch and durable workflow-run identity are implemented; published workflow definitions are now database-immutable. Conversation/Message APIs and signed Twilio SMS inbound ingestion are implemented as a foundation. Exact STOP commands persist a tenant-scoped per-channel opt-out and audit it, but no outbound sender exists yet to enforce suppression at send time. The Google Calendar port, adapter, and tenant-scoped token refresh exist, but OAuth consent/provisioning and the appointment use case are not wired. Full workflow steps, AI, booking, static-web/GCP infrastructure, and the end-to-end release gate remain open.

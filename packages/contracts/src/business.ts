@@ -29,6 +29,22 @@ export interface UpdateBusinessProfileRequest {
   readonly businessHours?: Readonly<Record<string, unknown>>;
 }
 
+/** Flexible tenant settings already modeled in SDD-01 FR-003 and the database. */
+export interface BusinessSettingsResponse {
+  readonly communicationPreferences: Readonly<Record<string, unknown>>;
+  readonly qualificationRules: Readonly<Record<string, unknown>>;
+  readonly bookingRules: Readonly<Record<string, unknown>>;
+  readonly aiConfiguration: Readonly<Record<string, unknown>>;
+  readonly updatedAt: string;
+}
+
+export interface UpdateBusinessSettingsRequest {
+  readonly communicationPreferences?: Readonly<Record<string, unknown>>;
+  readonly qualificationRules?: Readonly<Record<string, unknown>>;
+  readonly bookingRules?: Readonly<Record<string, unknown>>;
+  readonly aiConfiguration?: Readonly<Record<string, unknown>>;
+}
+
 /** The V0.2 custom-field scope (backlog VOS-045/VOS-046). */
 export const CUSTOM_FIELD_ENTITY_TYPES = ['CONTACT', 'LEAD', 'ESTIMATE'] as const;
 export type CustomFieldEntityType = (typeof CUSTOM_FIELD_ENTITY_TYPES)[number];

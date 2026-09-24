@@ -1,0 +1,33 @@
+info:
+  name: Create Lead Source
+  type: http
+  seq: 1
+  tags:
+    - crm
+    - lead-sources
+http:
+  method: POST
+  url: '{{baseUrl}}/lead-sources'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({ key: `bruno-${Date.now()}`, label: 'Bruno Smoke Test' });
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('leadSourceId', res.body.id);
+    - type: tests
+      code: |-
+        test('creates an active tenant-owned lead source', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.isActive).to.equal(true);
+        });

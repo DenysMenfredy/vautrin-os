@@ -13,12 +13,18 @@ Membership connecting a user to a tenant and role.
 
 ### BusinessProfile
 Business-specific operational configuration.
+The API exposes communication preferences, qualification rules, booking rules,
+and AI configuration through a `business.manage`-restricted settings resource.
+They remain flexible JSON objects until a versioned configuration schema is
+specified; the ordinary business-profile response omits AI configuration.
 
 ### Location
 Physical/service location associated with a tenant.
 
 ### Contact
 A person or organization interacting with the business.
+`ContactChannelPreference` records technical opt-outs by channel; the
+inbound STOP command is handled deterministically before AI interpretation.
 
 ### Lead
 A sales opportunity associated with a contact.
@@ -111,6 +117,13 @@ Lead lifecycle is a business concept, not an AI concept.
 
 AI may recommend or perform transitions through tools, but the domain owns
 the valid state transitions.
+
+For the initial status set in SDD-01 §4, a lead may move forward to any later
+listed stage; it may close as WON or LOST, and either closed state is terminal.
+Changing status uses the lead's current `version` so simultaneous human and AI
+updates cannot silently overwrite one another. Source IDs and requested
+service keys must resolve to active records in the same tenant when selected;
+the lead keeps its service-key snapshot after catalog changes.
 
 ## 5. Custom fields
 

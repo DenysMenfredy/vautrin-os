@@ -13,6 +13,7 @@ import type {
   ServiceAreaType,
   SetCustomFieldValueRequest,
   UpdateBusinessProfileRequest,
+  UpdateBusinessSettingsRequest,
   UpdateCustomFieldDefinitionRequest,
   UpdateLocationRequest,
   UpdateServiceAreaRequest,
@@ -103,6 +104,28 @@ export class UpdateBusinessProfileDto implements UpdateBusinessProfileRequest {
   @ValidateIf((_object, value) => value !== undefined)
   @IsObject()
   declare businessHours?: Readonly<Record<string, unknown>>;
+}
+
+export class UpdateBusinessSettingsDto implements UpdateBusinessSettingsRequest {
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsObject()
+  declare communicationPreferences?: Readonly<Record<string, unknown>>;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsObject()
+  declare qualificationRules?: Readonly<Record<string, unknown>>;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsObject()
+  declare bookingRules?: Readonly<Record<string, unknown>>;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsObject()
+  declare aiConfiguration?: Readonly<Record<string, unknown>>;
 }
 
 export class CreateCustomFieldDefinitionDto implements CreateCustomFieldDefinitionRequest {

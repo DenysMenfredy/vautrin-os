@@ -20,6 +20,7 @@ pnpm --filter @vautrin/api dev
 | `GET /api/auth/me` | Return the authenticated user, active tenant, role and capabilities |
 | `POST /api/auth/tenant` | Switch active tenant for a verified membership |
 | `GET/PATCH /api/business/profile` | Read or create/update profile for the active tenant |
+| `GET/PATCH /api/business/settings` | Read or update tenant operational settings (manager only) |
 | `GET/POST /api/business/locations` | List (cursor-paginated) or create locations |
 | `GET/PATCH/DELETE /api/business/locations/:id` | Read, update, or archive a location |
 | `GET/POST /api/business/services` | List (cursor-paginated) or create catalog services |
@@ -33,6 +34,18 @@ pnpm --filter @vautrin/api dev
 | `GET /api/contacts` | Search and cursor-paginate active-tenant contacts |
 | `POST /api/contacts` | Create a contact |
 | `GET/PATCH/DELETE /api/contacts/:contactId` | Read, update, or soft-archive a contact |
+| `GET/POST /api/lead-sources` | List or create tenant-owned lead sources |
+| `GET/PATCH/DELETE /api/lead-sources/:sourceId` | Read, update, or deactivate a lead source |
+| `GET/POST /api/leads` | Filter and paginate or create tenant leads |
+| `GET/PATCH/DELETE /api/leads/:leadId` | Read, update, or archive a lead |
+| `PATCH /api/leads/:leadId/status` | Move a lead forward through the lifecycle |
+| `PATCH /api/leads/:leadId/assignment` | Assign or unassign an active tenant member |
+| `GET /api/crm/dashboard` | Total and per-status lead counts |
+| `GET/POST /api/conversations` | List or open tenant conversations |
+| `GET /api/conversations/:conversationId` | Read a tenant conversation |
+| `PATCH /api/conversations/:conversationId/status` | Change conversation status |
+| `GET /api/conversations/:conversationId/messages` | List messages in a tenant conversation |
+| `POST /api/webhooks/twilio/inbound/:integrationId` | Signature-verified, provisioned Twilio SMS inbound callback (204 on success) |
 | `GET /api/docs` | OpenAPI UI (non-production only) |
 | `GET /api/docs-json` | OpenAPI document (non-production only) |
 
@@ -50,9 +63,15 @@ src/
 
 `app.module.ts` wires the implemented Auth, Tenant, Audit, Health, and Database
 modules. Business Configuration now provides profile, location, service, and
-service-area APIs. Contacts provides tenant-scoped CRUD, search, and cursor
-pagination. Lead, Conversation, Appointment, Estimate,
-Workflow, Agent, Knowledge, Integration, and Analytics HTTP features remain
+service-area APIs. Contacts and Leads provide tenant-scoped CRUD, search, and
+cursor pagination. Conversations provide tenant-scoped read/open/status and
+message-list APIs. The Twilio SMS inbound webhook deduplicates provider event/message IDs,
+atomically records `message.received`, and records an SMS/WhatsApp STOP as a
+tenant-scoped communication suppression before any AI processing. No public
+outbound send endpoint exists yet; this suppression is not
+a substitute for a reviewed legal consent policy.
+Appointment, Estimate,
+Workflow, Agent, Knowledge, Integration management, and Analytics HTTP features remain
 future work.
 
 ## Authentication smoke tests
@@ -66,15 +85,18 @@ route.
 
 Requests are ordered so **Run All** checks health and validation, then exercises
 login, `/me`, tenant switching, body and cookie refresh, logout and refresh-token
-revocation, and business-configuration profile and CRUD endpoints. API docs
+revocation, business-configuration endpoints, a CRM lead smoke flow, and a
+conversation smoke flow.
+The CRM flow creates records, so run it against a disposable tenant. API docs
 requests are for non-production environments only. Bruno keeps access and
 refresh tokens as runtime variables and rotates the refresh cookie between
 requests.
 
 ## Production cookie and proxy contract
 
-The preferred topology is same-origin: the Nuxt application serves the browser
-and proxies `/api/*` to this service. The refresh token is HttpOnly, scoped to
+The preferred topology is same-origin: Nuxt/Nitro proxies `/api/*` locally,
+while the v0.3 GCP target routes `/api/*` through the external HTTPS load
+balancer beside the static Nuxt assets. The refresh token is HttpOnly, scoped to
 `/api/auth`, and Secure in production. Cookie-authenticated mutations validate
 an exact `Origin` against `TRUSTED_ORIGINS`; requests without an Origin remain
 available to non-browser clients. Do not configure a wildcard origin.
@@ -107,6 +129,12 @@ VOS-033).
 
 Business configuration routes require an active-tenant access token.
 `business.read` is required for reads and `business.manage` for mutations.
+The operational settings route requires `business.manage` for both reads and
+writes because its AI configuration may be sensitive. It exposes the existing
+communication preferences, qualification rules, booking rules, and AI
+configuration JSON fields without inventing a nested schema not defined by
+SDD-01. Provider credentials belong in a secret manager, not in these JSON
+fields. Create the business profile before updating settings.
 List endpoints use `limit` (default 50, maximum 100), optional `search`, and
 the opaque `nextCursor` returned in each page. Service and service-area lists
 also accept an `active` filter. Location deletion is an archive (`deleted_at`);
@@ -122,6 +150,67 @@ search on names, email, and company (plus substring phone search), and use the
 is normalized to lowercase, phone numbers use the schema's E.164 format, and
 the existing flexible `address` JSON field is not constrained to an
 undocumented shape.
+
+CRM reads require `lead.read`; lead changes require `lead.write`. Lead-source
+catalog changes require `business.manage`, and assignment requires
+`lead.assign`. A lead must reference an active contact in the current tenant;
+selected source and service must also be active in that tenant. Lead updates,
+status transitions, and assignments require the current `version` and return
+409 if another actor changed the lead first. Statuses advance through the
+order in SDD-01 §4; WON and LOST are terminal. Lead creation and transitions
+write versioned outbox events together with the lead and audit record.
+`/crm/dashboard` counts only unarchived leads in the active tenant.
+
+Conversation reads require `conversation.read`; creation and status changes
+require `conversation.write`. A new conversation must reference an active
+contact and, when supplied, a lead belonging to that contact in the active
+tenant. Conversation and message lists use the same opaque cursor contract as
+CRM. The message API remains read-only while an outbound worker and send-time
+suppression checks are implemented. The Twilio inbound webhook is the only
+provider mutation path currently exposed.
+
+## Twilio inbound SMS setup
+
+The webhook accepts `application/x-www-form-urlencoded` from a provisioned
+Twilio Messaging Service. Provisioning is currently an operator action; no
+client endpoint can create integrations or submit secrets. For each tenant,
+use a dedicated Twilio subaccount and Messaging Service. The tenant's
+`Integration` row must use `provider = twilio`, `category = MESSAGING`, an
+enabled status, `externalAccountId` equal to the Twilio Account SID, and
+non-secret `configuration` containing `messagingServiceSid`, `phoneNumber`
+(E.164), and the exact public HTTPS `webhookUrl`. The URL must be
+`https://<public-host>/<API_GLOBAL_PREFIX>/webhooks/twilio/inbound/<integration-uuid>`
+(`api` is the default prefix); keep
+any query string identical between Twilio and the configuration. It must not
+be an internal proxy URL.
+
+Set `credentialsRef` to a tenant-specific environment reference such as
+`env:VAUTRIN_TWILIO_TENANT_A`. Inject that variable from Secret Manager as
+JSON with `accountSid`, `apiKeySid`, `apiKeySecret`, `webhookAuthToken`, and
+`messagingServiceSid`. Do not place the JSON or tokens in the database,
+repository, or Bruno collection. The API key authenticates REST sends; the
+subaccount Auth Token validates inbound signatures. Twilio must POST its full
+form body and `X-Twilio-Signature` header to the configured URL. The API
+rejects a wrong path/query, signature, Account SID, or recipient number before
+writing tenant data. Replays are acknowledged without duplicating the message.
+
+The adapter exposes a send operation but no production outbound coordinator
+calls it yet. Do not enable automated sending until the database-backed send
+claim, opt-out enforcement, delivery status, and provider-failure handling are
+complete. Complete applicable sender registration and consent review before
+live traffic.
+
+The Google Calendar adapter and OAuth refresh client live in
+`@vautrin/integrations`; they are not yet an appointment API. The API's
+tenant-scoped connection resolver expects a connected `Integration` with
+`provider = google_calendar`, `category = CALENDAR`, and non-secret
+`configuration.calendarId`. Set `credentialsRef` to a tenant-specific
+`env:VAUTRIN_GOOGLE_CALENDAR_*` reference, injected from Secret Manager as
+JSON containing `clientId`, `clientSecret`, and `refreshToken`. Obtain the
+refresh token through the [Google web-server OAuth flow](https://developers.google.com/identity/protocols/oauth2/web-server)
+with offline access and the minimum Calendar scopes needed for free/busy and
+event changes. Consent, callback handling, and appointment persistence are
+not implemented yet. Do not put access or refresh tokens in business settings.
 
 `businessHours` is read and written as part of `/business/profile`; it uses the
 existing tenant profile JSON field. SDD-01/03/04 require weekly availability
@@ -152,6 +241,6 @@ and closes the database pool during a rolling deploy.
 
 ## Not here yet
 
-Lead, Conversation, Appointment, Estimate, Workflow, Agent, Knowledge,
-Integration, Analytics, and structured JSON logging with correlation IDs
+Outbound messaging, Appointment, Estimate, Workflow, Agent, Knowledge,
+Integration management, Analytics, and structured JSON logging with correlation IDs
 (VOS-120) remain future work. The API currently uses Nest's default logger.

@@ -1,0 +1,41 @@
+info:
+  name: Create Lead
+  type: http
+  seq: 3
+  tags:
+    - crm
+    - leads
+http:
+  method: POST
+  url: '{{baseUrl}}/leads'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({
+          contactId: bru.getVar('contactId'),
+          sourceId: bru.getVar('leadSourceId'),
+          title: 'Bruno remodeling inquiry'
+        });
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          bru.setVar('leadId', res.body.id);
+          bru.setVar('leadVersion', res.body.version);
+        }
+    - type: tests
+      code: |-
+        test('creates a NEW lead for the contact', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.status).to.equal('NEW');
+          expect(res.body.version).to.be.a('number');
+        });

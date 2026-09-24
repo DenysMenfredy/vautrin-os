@@ -14,6 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type {
   BusinessProfileResponse,
+  BusinessSettingsResponse,
   LocationResponse,
   PageResponse,
   ServiceAreaResponse,
@@ -30,6 +31,7 @@ import {
   ListBusinessItemsDto,
   ListLocationsDto,
   UpdateBusinessProfileDto,
+  UpdateBusinessSettingsDto,
   UpdateLocationDto,
   UpdateServiceAreaDto,
   UpdateServiceDto,
@@ -56,6 +58,24 @@ export class BusinessController {
     @Body() input: UpdateBusinessProfileDto,
   ): Promise<BusinessProfileResponse> {
     return this.business.updateProfile(tenantId, auth.userId, input);
+  }
+
+  @Get('settings')
+  @RequireCapability('business.manage')
+  @ApiOperation({ summary: 'Read the active tenant operational settings' })
+  getSettings(@ActiveTenant() tenantId: string): Promise<BusinessSettingsResponse> {
+    return this.business.getSettings(tenantId);
+  }
+
+  @Patch('settings')
+  @RequireCapability('business.manage')
+  @ApiOperation({ summary: 'Update the active tenant operational settings' })
+  updateSettings(
+    @ActiveTenant() tenantId: string,
+    @CurrentAuth() auth: AuthenticatedRequestContext,
+    @Body() input: UpdateBusinessSettingsDto,
+  ): Promise<BusinessSettingsResponse> {
+    return this.business.updateSettings(tenantId, auth.userId, input);
   }
 
   @Get('locations')

@@ -1,0 +1,33 @@
+info:
+  name: Transition Lead
+  type: http
+  seq: 5
+  tags:
+    - crm
+    - leads
+http:
+  method: PATCH
+  url: '{{baseUrl}}/leads/{{leadId}}/status'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({ version: Number(bru.getVar('leadVersion')), status: 'CONTACTED' });
+    - type: after-response
+      code: |-
+        if (res.status === 200) bru.setVar('leadVersion', res.body.version);
+    - type: tests
+      code: |-
+        test('moves the lead forward with optimistic concurrency', function () {
+          expect(res.status).to.equal(200);
+          expect(res.body.status).to.equal('CONTACTED');
+        });
