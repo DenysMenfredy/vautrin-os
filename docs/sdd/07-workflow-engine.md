@@ -24,6 +24,24 @@ Workflow
  └── Activation state
 ```
 
+### V0.3 definition API envelope
+
+The management API stores each editable workflow version as a draft. Its
+`definition` JSON has a 1–100 item `steps` array; each step has a stable `id`, a supported
+lower-case `type`, and an object-valued `config`. Step IDs are unique within
+the version. The supported v0.3 types are `wait`, `condition`, `send_message`,
+`create_lead`, `update_lead`, `create_appointment`, `call_agent`,
+`human_handoff`, and `end`. The step executor owns type-specific `config`
+validation when that step becomes executable; opaque configuration is never
+evaluated as code. Trigger conditions, retry policy, and failure policy are
+stored as JSON, but are not interpreted until their execution work lands.
+
+Create starts version 1 in `DRAFT`. Only drafts can be edited. Activating a
+draft publishes it, after which PostgreSQL enforces definition immutability.
+Creating a new version copies a published version into the next draft version;
+activation, pause, archive, and version creation are audited. Runs continue to
+refer to the immutable version they started with.
+
 ## 3. Trigger
 
 Examples:

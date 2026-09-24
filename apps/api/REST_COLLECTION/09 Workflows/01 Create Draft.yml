@@ -1,0 +1,41 @@
+info:
+  name: Create Workflow Draft
+  type: http
+  seq: 1
+  tags:
+    - workflows
+http:
+  method: POST
+  url: '{{baseUrl}}/workflows'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        req.setBody({
+          key: 'bruno_missed_call_' + Date.now(),
+          name: 'Missed call recovery',
+          trigger: 'call.missed',
+          definition: {
+            steps: [{ id: 'initial-wait', type: 'wait', config: { duration: '30s' } }]
+          }
+        });
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('workflowId', res.body.id);
+    - type: tests
+      code: |-
+        test('creates version 1 as an unpublished draft', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.status).to.equal('DRAFT');
+          expect(res.body.version).to.equal(1);
+          expect(res.body.publishedAt).to.equal(null);
+        });

@@ -246,10 +246,11 @@ Agent/tool/provider metadata.
 
 ### VOS-081 [P1] Workflow definition model
 Versioned workflows.
-**Status:** PARTIAL — PostgreSQL now enforces immutability of published workflow definitions and stamps publication on activation. Definition validation, management API, activation audit, and seeded workflow data remain.
+**Status:** PARTIAL — tenant-scoped cursor list/read and draft create/edit APIs validate the versioned step envelope; activation/pause/archive, version cloning, and audit are implemented. Type-specific step configuration validation and seeded workflow data remain with their consumers/template.
 
 ### VOS-082 [P1] Workflow run model
 Persist execution state.
+**Status:** PARTIAL — event consumption creates one tenant-scoped pending run per event/workflow version; step lifecycle transitions and run completion/failure remain.
 
 ### VOS-083 [P1] Workflow worker
 **Status:** PARTIAL — RLS-safe Event outbox polling/claiming, BullMQ dispatch and idempotent creation of pending workflow runs, with concurrency/replay/failure integration tests. Step execution and workflow completion/failure handling remain.
@@ -517,4 +518,4 @@ The v0.3 exit gate is the provider-mocked missed-call-to-booking E2E path plus a
 
 Only the first coherent slices should be marked DONE as they pass their own acceptance tests. Provider selection and production GCP credentials are not specified by the pack and must not be guessed or committed.
 
-Current v0.3 progress: documentation reconciliation, outbox discovery/dispatch and durable workflow-run identity are implemented; published workflow definitions are now database-immutable. Conversation/Message APIs and signed Twilio SMS inbound ingestion are implemented as a foundation. Exact STOP commands persist a tenant-scoped per-channel opt-out and audit it, but no outbound sender exists yet to enforce suppression at send time. The Google Calendar port, adapter, and tenant-scoped token refresh exist, but OAuth consent/provisioning and the appointment use case are not wired. Full workflow steps, AI, booking, static-web/GCP infrastructure, and the end-to-end release gate remain open.
+Current v0.3 progress: documentation reconciliation, outbox discovery/dispatch, and durable workflow-run identity are implemented. Workflow definitions now have tenant-scoped draft management, immutable published versions, audited lifecycle operations, and a versioned step envelope; execution is still pending. Conversation/Message APIs, signed Twilio inbound/status callbacks, and an outbound SMS worker with send-time opt-out suppression are implemented. Outbound lifecycle/status reconciliation tests and live provider staging remain. The Google Calendar port, adapter, and tenant-scoped token refresh exist, but OAuth consent/provisioning and the appointment use case are not wired. Workflow step execution, AI, booking, static-web/GCP infrastructure, and the critical-path E2E release gate remain open.

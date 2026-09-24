@@ -221,6 +221,7 @@ enum WorkflowStepType {
   CALL_AGENT
   CREATE_TASK
   HUMAN_APPROVAL
+  HUMAN_HANDOFF
   END
 
   @@map("workflow_step_type")

@@ -1,0 +1,25 @@
+info:
+  name: Create Next Workflow Version
+  type: http
+  seq: 5
+  tags:
+    - workflows
+http:
+  method: POST
+  url: '{{baseUrl}}/workflows/{{workflowId}}/versions'
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+runtime:
+  scripts:
+    - type: after-response
+      code: |-
+        if (res.status === 201) bru.setVar('workflowDraftV2Id', res.body.id);
+    - type: tests
+      code: |-
+        test('clones published configuration into the next draft version', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.version).to.equal(2);
+          expect(res.body.status).to.equal('DRAFT');
+          expect(res.body.publishedAt).to.equal(null);
+        });

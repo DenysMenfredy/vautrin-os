@@ -14,6 +14,7 @@ import { HealthModule } from './health/health.module.js';
 import { IntegrationsModule } from './integrations/integrations.module.js';
 import { LeadsModule } from './leads/leads.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
+import { WorkflowsModule } from './workflows/workflows.module.js';
 
 /**
  * API composition root (ADR-002 — modular monolith).
@@ -41,6 +42,7 @@ import { TenantModule } from './tenant/tenant.module.js';
     LeadsModule,
     HealthModule,
     IntegrationsModule,
+    WorkflowsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

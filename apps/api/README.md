@@ -46,6 +46,10 @@ pnpm --filter @vautrin/api dev
 | `PATCH /api/conversations/:conversationId/status` | Change conversation status |
 | `GET /api/conversations/:conversationId/messages` | List messages in a tenant conversation |
 | `POST /api/conversations/:conversationId/messages` | Persist and queue an outbound SMS (idempotency key required) |
+| `GET/POST /api/workflows` | List workflow versions or create a draft (`workflow.read` / `workflow.manage`) |
+| `GET/PATCH /api/workflows/:workflowId` | Read a workflow or edit its draft definition |
+| `POST /api/workflows/:workflowId/versions` | Copy a published version into the next draft version |
+| `PATCH /api/workflows/:workflowId/status` | Activate, pause, or archive a workflow version |
 | `POST /api/webhooks/twilio/inbound/:integrationId` | Signature-verified, provisioned Twilio SMS inbound callback (204 on success) |
 | `POST /api/webhooks/twilio/status/:integrationId?messageId=...` | Signature-verified outbound delivery status callback (204 on success) |
 | `GET /api/docs` | OpenAPI UI (non-production only) |
@@ -73,9 +77,11 @@ atomically records `message.received`, and records an SMS/WhatsApp STOP as a
 tenant-scoped communication suppression before any AI processing. Outbound
 sends use the durable outbox and worker-time suppression check; this technical
 suppression is not a substitute for a reviewed legal consent policy.
-Appointment, Estimate,
-Workflow, Agent, Knowledge, Integration management, and Analytics HTTP features remain
-future work.
+Workflow definitions now have tenant-scoped draft management, immutable
+published versions, lifecycle transitions, and audit records. Workflow run
+creation is driven by the durable event consumer; step execution remains
+future work. Appointment, Estimate, Agent, Knowledge, Integration management,
+and Analytics HTTP features also remain future work.
 
 ## Authentication smoke tests
 
@@ -89,7 +95,8 @@ route.
 Requests are ordered so **Run All** checks health and validation, then exercises
 login, `/me`, tenant switching, body and cookie refresh, logout and refresh-token
 revocation, business-configuration endpoints, a CRM lead smoke flow, and a
-conversation smoke flow.
+conversation smoke flow, and workflow-definition lifecycle requests. Workflow
+mutations require an owner/admin account with `workflow.manage`.
 The CRM flow creates records, so run it against a disposable tenant. API docs
 requests are for non-production environments only. Bruno keeps access and
 refresh tokens as runtime variables and rotates the refresh cookie between

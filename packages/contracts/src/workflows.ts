@@ -1,0 +1,79 @@
+import type { PageRequest, PageResponse } from './business.js';
+
+/** The step vocabulary admitted by the v0.3 workflow definition contract. */
+export const WORKFLOW_STEP_TYPES = [
+  'wait',
+  'condition',
+  'send_message',
+  'create_lead',
+  'update_lead',
+  'create_appointment',
+  'call_agent',
+  'human_handoff',
+  'end',
+] as const;
+export type WorkflowStepType = (typeof WORKFLOW_STEP_TYPES)[number];
+
+export const WORKFLOW_STATUSES = ['DRAFT', 'ACTIVE', 'PAUSED', 'ARCHIVED'] as const;
+export type WorkflowStatus = (typeof WORKFLOW_STATUSES)[number];
+
+export interface WorkflowStepDefinition {
+  readonly id: string;
+  readonly type: WorkflowStepType;
+  readonly config: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * The versioned envelope is stable; step-specific config is validated by its
+ * executor as each v0.3 step type is implemented.
+ */
+export interface WorkflowDefinition {
+  readonly steps: readonly WorkflowStepDefinition[];
+}
+
+export interface WorkflowResponse {
+  readonly id: string;
+  readonly key: string;
+  readonly version: number;
+  readonly name: string;
+  readonly description: string | null;
+  readonly trigger: string;
+  readonly status: WorkflowStatus;
+  readonly definition: WorkflowDefinition;
+  readonly conditions: readonly Readonly<Record<string, unknown>>[];
+  readonly retryPolicy: Readonly<Record<string, unknown>>;
+  readonly failurePolicy: Readonly<Record<string, unknown>>;
+  readonly publishedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface CreateWorkflowRequest {
+  readonly key: string;
+  readonly name: string;
+  readonly description?: string | null;
+  readonly trigger: string;
+  readonly definition: WorkflowDefinition;
+  readonly conditions?: readonly Readonly<Record<string, unknown>>[];
+  readonly retryPolicy?: Readonly<Record<string, unknown>>;
+  readonly failurePolicy?: Readonly<Record<string, unknown>>;
+}
+
+export interface UpdateWorkflowRequest {
+  readonly name?: string;
+  readonly description?: string | null;
+  readonly trigger?: string;
+  readonly definition?: WorkflowDefinition;
+  readonly conditions?: readonly Readonly<Record<string, unknown>>[];
+  readonly retryPolicy?: Readonly<Record<string, unknown>>;
+  readonly failurePolicy?: Readonly<Record<string, unknown>>;
+}
+
+export type WorkflowLifecycleRequest = Extract<WorkflowStatus, 'ACTIVE' | 'PAUSED' | 'ARCHIVED'>;
+
+export interface ListWorkflowsRequest extends PageRequest {
+  readonly status?: WorkflowStatus;
+  readonly trigger?: string;
+}
+
+export type WorkflowPageResponse = PageResponse<WorkflowResponse>;
