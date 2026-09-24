@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { OutboxModule } from './outbox/outbox.module.js';
 import { QueuesModule } from './queues/queues.module.js';
+import { WorkflowsModule } from './workflows/workflows.module.js';
 
 /**
  * Worker composition root (ADR-009).
@@ -13,6 +14,13 @@ import { QueuesModule } from './queues/queues.module.js';
  * processors. Workflow actions and agent execution follow later.
  */
 @Module({
-  imports: [EnvironmentModule, DatabaseModule, QueuesModule, OutboxModule, MessagingModule],
+  imports: [
+    EnvironmentModule,
+    DatabaseModule,
+    QueuesModule,
+    WorkflowsModule,
+    OutboxModule,
+    MessagingModule,
+  ],
 })
 export class AppModule {}

@@ -250,13 +250,14 @@ Versioned workflows.
 
 ### VOS-082 [P1] Workflow run model
 Persist execution state.
-**Status:** PARTIAL — event consumption creates one tenant-scoped pending run per event/workflow version; step lifecycle transitions and run completion/failure remain.
+**Status:** PARTIAL — event consumption creates one tenant-scoped pending run per event/workflow version; PostgreSQL-backed step/run transitions now cover WAIT, END, and explicit unsupported/invalid failures. Other step executors and full retry/failure policy remain.
 
 ### VOS-083 [P1] Workflow worker
-**Status:** PARTIAL — RLS-safe Event outbox polling/claiming, BullMQ dispatch and idempotent creation of pending workflow runs, with concurrency/replay/failure integration tests. Step execution and workflow completion/failure handling remain.
+**Status:** PARTIAL — RLS-safe event outbox dispatch and idempotent run creation, plus a tenant-scoped workflow-run reconciler and row-locked WAIT/END execution with integration coverage. Other step executors and full retry/failure policy remain.
 
 ### VOS-084 [P1] Wait step
 Delayed jobs.
+**Status:** PARTIAL — duration validation, durable PostgreSQL scheduling, delayed BullMQ wake-up and restart reconciliation are implemented; broader operational retry/failure-policy behavior remains in VOS-089.
 
 ### VOS-085 [P1] Condition step
 Safe condition evaluation.

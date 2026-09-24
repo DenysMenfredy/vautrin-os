@@ -125,7 +125,19 @@ Each workflow must specify what happens when a step fails:
 
 ## 9. Scheduling
 
-Delayed steps are persisted as queue jobs.
+For v0.3 `wait`, `config.duration` currently accepts the positive-integer
+seconds/hours forms shown in the workflow example (for example `30s` or `24h`).
+The worker writes the scheduled
+step and `WorkflowRun.scheduled_for` in PostgreSQL before a reconciler creates
+the delayed BullMQ wake job. PostgreSQL remains authoritative: the reconciler
+discovers pending/waiting run tenant IDs through a narrow database function,
+then reloads and locks runs within tenant RLS. Missing jobs are recreated
+after Redis loss or process restarts. On wake, the worker locks and reloads the
+run, checks that the same wait step is still current and due, then advances it.
+
+The initial executor supports `wait` and `end`. Other admitted step types fail
+the step/run with an explicit `step_type_not_implemented` reason until their
+specified executors land; they are not skipped or interpreted dynamically.
 
 Do not rely on in-memory timers.
 
@@ -147,12 +159,12 @@ Existing workflow runs continue using the version with which they started.
 {
   "trigger": "call.missed",
   "steps": [
-    {"type": "wait", "duration": "30s"},
-    {"type": "call_agent", "agent": "receptionist"},
-    {"type": "send_message", "channel": "sms"},
-    {"type": "wait", "duration": "24h"},
-    {"type": "condition", "expression": "lead.replied == false"},
-    {"type": "call_agent", "agent": "follow_up"}
+    {"id": "initial-delay", "type": "wait", "config": {"duration": "30s"}},
+    {"id": "receptionist", "type": "call_agent", "config": {"agent": "receptionist"}},
+    {"id": "first-follow-up", "type": "send_message", "config": {"channel": "sms"}},
+    {"id": "next-day-delay", "type": "wait", "config": {"duration": "24h"}},
+    {"id": "unreplied", "type": "condition", "config": {"expression": "lead.replied == false"}},
+    {"id": "follow-up-agent", "type": "call_agent", "config": {"agent": "follow_up"}}
   ]
 }
 ```

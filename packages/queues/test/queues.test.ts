@@ -3,10 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   ALL_QUEUES,
   assertDurableEventJob,
+  assertWorkflowRunJob,
   DEFAULT_JOB_OPTIONS,
   DOMAIN_EVENT_JOB,
   durableEventJobId,
   QUEUE,
+  WORKFLOW_RUN_JOB,
+  workflowRunJobId,
 } from '../src/index.js';
 
 describe('shared queue contract (VOS-012)', () => {
@@ -31,5 +34,20 @@ describe('shared queue contract (VOS-012)', () => {
     expect(() => assertDurableEventJob(job)).not.toThrow();
     expect(() => assertDurableEventJob({ ...job, tenantId: 'other-tenant' })).toThrow();
     expect(() => assertDurableEventJob({ tenantId: job.tenantId })).toThrow();
+  });
+
+  it('gives workflow starts and delayed wakes tenant-bearing stable identities', () => {
+    const tenantId = '0192f1a0-1b2c-7d3e-8f40-51627384950a';
+    const runId = '0192f1a0-1b2c-7d3e-8f40-51627384950b';
+    const start = { tenantId, runId, action: 'start' as const };
+    const wake = { tenantId, runId, action: 'wake' as const, stepId: 'wait-before-send' };
+
+    expect(WORKFLOW_RUN_JOB).toBe('workflow.run');
+    expect(workflowRunJobId(start)).toBe(`workflow-${runId}-start`);
+    expect(workflowRunJobId(wake)).toBe(`workflow-${runId}-wake-wait-before-send`);
+    expect(() => assertWorkflowRunJob(start)).not.toThrow();
+    expect(() => assertWorkflowRunJob(wake)).not.toThrow();
+    expect(() => assertWorkflowRunJob({ ...wake, tenantId: 'invalid' })).toThrow();
+    expect(() => assertWorkflowRunJob({ ...wake, stepId: 'not valid' })).toThrow();
   });
 });

@@ -20,9 +20,9 @@ outbox events establish the v0.2 events-and-queues gate. See
 and acceptance criteria.
 
 V0.3 work has begun with RLS-safe outbox dispatch, idempotent workflow-run
-creation, and tenant-scoped conversation/message APIs. Messaging providers,
-workflow steps, AI, booking, and GCP staging are not implemented yet; the
-v0.3 exit criteria remain open.
+creation, tenant-scoped conversation/message APIs, and durable workflow `wait`
+and `end` execution. Other workflow actions, messaging providers, AI, booking,
+and GCP staging are not implemented yet; the v0.3 exit criteria remain open.
 
 ## Product principle
 

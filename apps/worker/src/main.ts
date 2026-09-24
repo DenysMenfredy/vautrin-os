@@ -7,6 +7,7 @@ import { ALL_QUEUES } from '@vautrin/queues';
 import { AppModule } from './app.module.js';
 import { ENVIRONMENT } from './config/environment.module.js';
 import { OutboxDispatcher } from './outbox/outbox-dispatcher.service.js';
+import { WorkflowRunScheduler } from './workflows/workflow-run.scheduler.js';
 
 async function bootstrap(): Promise<void> {
   // A standalone context, not an HTTP server: this process registers queues
@@ -23,6 +24,7 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   app.get(OutboxDispatcher).start();
+  app.get(WorkflowRunScheduler).start();
 
   logger.log(`Worker started [${environment.NODE_ENV}] with queues: ${ALL_QUEUES.join(', ')}`);
 }

@@ -9,10 +9,13 @@ import {
   SEND_MESSAGE_JOB,
   type SendMessageJob,
   sendMessageJobId,
+  WORKFLOW_RUN_JOB,
+  type WorkflowRunJob,
 } from '@vautrin/queues';
 import type { Job, Queue } from 'bullmq';
 
 import { DatabaseService } from '../database/database.service.js';
+import { WorkflowRunExecutor } from '../workflows/workflow-run.executor.js';
 
 /** Creates at most one pending run per event + workflow version. */
 @Processor(QUEUE.WORKFLOW)
@@ -21,13 +24,17 @@ export class DomainEventProcessor extends WorkerHost {
 
   constructor(
     private readonly database: DatabaseService,
+    private readonly workflowRuns: WorkflowRunExecutor,
     @Inject(getQueueToken(QUEUE.NOTIFICATIONS))
     private readonly notifications: Queue<SendMessageJob>,
   ) {
     super();
   }
 
-  process(job: Job<DurableEventJob>): Promise<{ created: number; replayed: number }> {
+  process(
+    job: Job<DurableEventJob | WorkflowRunJob>,
+  ): Promise<{ created: number; replayed: number } | { result: string; runId: string }> {
+    if (job.name === WORKFLOW_RUN_JOB) return this.workflowRuns.handle(job.data);
     if (job.name !== DOMAIN_EVENT_JOB) throw new Error(`Unknown workflow job: ${job.name}`);
     return this.handle(job.data);
   }
@@ -121,7 +128,7 @@ export class DomainEventProcessor extends WorkerHost {
   }
 
   @OnWorkerEvent('failed')
-  onFailed(job: Job<DurableEventJob> | undefined, error: Error): void {
+  onFailed(job: Job<DurableEventJob | WorkflowRunJob> | undefined, error: Error): void {
     this.logger.error(
       `Workflow job failed tenantId=${job?.data?.tenantId ?? 'unknown'} jobId=${job?.id ?? 'unknown'} error=${error.name}`,
     );

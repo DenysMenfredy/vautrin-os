@@ -12,6 +12,7 @@ export type QueueName = (typeof QUEUE)[keyof typeof QUEUE];
 export const ALL_QUEUES: readonly QueueName[] = Object.values(QUEUE);
 export const DOMAIN_EVENT_JOB = 'domain.event';
 export const SEND_MESSAGE_JOB = 'message.send';
+export const WORKFLOW_RUN_JOB = 'workflow.run';
 
 /** Bounded retry policy for jobs; each side effect still needs idempotency. */
 export const DEFAULT_JOB_OPTIONS = {
@@ -39,9 +40,42 @@ export interface SendMessageJob extends TenantQueueJob {
   readonly messageId: string;
 }
 
+export type WorkflowRunJob = TenantQueueJob &
+  (
+    | { readonly runId: string; readonly action: 'start' }
+    | { readonly runId: string; readonly action: 'wake'; readonly stepId: string }
+  );
+
 export function sendMessageJobId(messageId: string): string {
   if (!isUuid(messageId)) throw new Error('messageId must be a UUID.');
   return `message-${messageId}`;
+}
+
+export function workflowRunJobId(job: WorkflowRunJob): string {
+  if (!isUuid(job.runId)) throw new Error('runId must be a UUID.');
+  if (job.action === 'wake') {
+    if (!isStepId(job.stepId)) throw new Error('stepId is invalid.');
+    return `workflow-${job.runId}-wake-${job.stepId}`;
+  }
+  if (job.action !== 'start') throw new Error('workflow action is invalid.');
+  return `workflow-${job.runId}-start`;
+}
+
+export function assertWorkflowRunJob(value: unknown): asserts value is WorkflowRunJob {
+  if (!isRecord(value) || !isUuid(value.tenantId) || !isUuid(value.runId)) {
+    throw new Error('A workflow run job requires tenantId and runId UUIDs.');
+  }
+  if (value.action === 'wake') {
+    if (!isStepId(value.stepId)) throw new Error('A workflow wake job requires a valid stepId.');
+  } else if (value.action !== 'start' || value.stepId !== undefined) {
+    throw new Error('Workflow run action is invalid.');
+  }
+  if (value.correlationId !== undefined && !isUuid(value.correlationId)) {
+    throw new Error('correlationId must be a UUID.');
+  }
+  if (value.idempotencyKey !== undefined && typeof value.idempotencyKey !== 'string') {
+    throw new Error('idempotencyKey must be a string.');
+  }
 }
 
 export function assertSendMessageJob(value: unknown): asserts value is SendMessageJob {
@@ -92,4 +126,8 @@ function isUuid(value: unknown): value is string {
     typeof value === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
   );
+}
+
+function isStepId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z][a-z0-9_-]{0,63}$/.test(value);
 }

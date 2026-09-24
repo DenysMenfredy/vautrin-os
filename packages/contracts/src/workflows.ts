@@ -31,6 +31,40 @@ export interface WorkflowDefinition {
   readonly steps: readonly WorkflowStepDefinition[];
 }
 
+/** Runtime parser used by both the API boundary and asynchronous workers. */
+export function parseWorkflowDefinition(value: unknown): WorkflowDefinition {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['steps']) || !Array.isArray(value.steps)) {
+    throw new Error('definition must contain only a steps array.');
+  }
+  if (value.steps.length === 0 || value.steps.length > 100) {
+    throw new Error('definition.steps must contain 1-100 steps.');
+  }
+  const ids = new Set<string>();
+  const steps: WorkflowStepDefinition[] = value.steps.map((candidate, index) => {
+    if (
+      !isRecord(candidate) ||
+      !hasOnlyKeys(candidate, ['id', 'type', 'config']) ||
+      typeof candidate.id !== 'string' ||
+      !/^[a-z][a-z0-9_-]{0,63}$/.test(candidate.id) ||
+      typeof candidate.type !== 'string' ||
+      !WORKFLOW_STEP_TYPES.some((type) => type === candidate.type) ||
+      !isRecord(candidate.config)
+    ) {
+      throw new Error(
+        `definition.steps[${index}] requires a valid id, supported type, and config object.`,
+      );
+    }
+    if (ids.has(candidate.id)) throw new Error(`Workflow step id '${candidate.id}' is duplicated.`);
+    ids.add(candidate.id);
+    return {
+      id: candidate.id,
+      type: candidate.type as WorkflowStepType,
+      config: candidate.config,
+    };
+  });
+  return { steps };
+}
+
 export interface WorkflowResponse {
   readonly id: string;
   readonly key: string;
@@ -77,3 +111,11 @@ export interface ListWorkflowsRequest extends PageRequest {
 }
 
 export type WorkflowPageResponse = PageResponse<WorkflowResponse>;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  return Object.keys(value).every((key) => keys.includes(key));
+}
