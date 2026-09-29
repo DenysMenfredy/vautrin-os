@@ -123,19 +123,31 @@ describe('durable workflow execution (VOS-083/084)', () => {
     expect(result.steps.map((step) => step.status)).toEqual(['COMPLETED', 'COMPLETED']);
   });
 
-  it('fails unsupported step types explicitly instead of skipping them', async () => {
-    const unsupportedRunId = await withTenant(runtime, tenantA, async (tx) => {
+  it('completes a false condition, persists its decision, and follows onFalse', async () => {
+    const conditionRunId = await withTenant(runtime, tenantA, async (tx) => {
       const workflow = await tx.workflow.create({
         data: {
           tenantId: tenantA,
-          key: `workflow-run-unsupported-${suffix}`,
+          key: `workflow-run-condition-false-${suffix}`,
           version: 1,
-          name: 'Unsupported action',
+          name: 'False condition branch',
           trigger: 'test.trigger',
           status: 'ACTIVE',
           publishedAt: new Date(),
           definition: {
-            steps: [{ id: 'check-reply', type: 'condition', config: {} }],
+            steps: [
+              {
+                id: 'check',
+                type: 'condition',
+                config: {
+                  condition: { field: 'workflow.key', operator: 'eq', value: 'not-this-workflow' },
+                  onTrue: 'true-end',
+                  onFalse: 'false-end',
+                },
+              },
+              { id: 'true-end', type: 'end', config: {} },
+              { id: 'false-end', type: 'end', config: {} },
+            ],
           },
         },
       });
@@ -145,25 +157,213 @@ describe('durable workflow execution (VOS-083/084)', () => {
           workflowId: workflow.id,
           workflowVersion: workflow.version,
           triggerEvent: workflow.trigger,
-          idempotencyKey: `workflow-run-unsupported-${suffix}`,
+          idempotencyKey: `workflow-run-condition-false-${suffix}`,
         },
       });
       return run.id;
     });
 
     expect(
-      (await executor.handle({ tenantId: tenantA, runId: unsupportedRunId, action: 'start' }))
-        .result,
-    ).toBe('failed');
-    const failed = await withTenant(runtime, tenantA, async (tx) => ({
-      run: await tx.workflowRun.findFirst({ where: { id: unsupportedRunId, tenantId: tenantA } }),
-      step: await tx.workflowStepRun.findFirst({
-        where: { tenantId: tenantA, workflowRunId: unsupportedRunId, stepId: 'check-reply' },
+      (await executor.handle({ tenantId: tenantA, runId: conditionRunId, action: 'start' })).result,
+    ).toBe('completed');
+    const conditionResult = await withTenant(runtime, tenantA, async (tx) => {
+      const run = await tx.workflowRun.findFirst({
+        where: { id: conditionRunId, tenantId: tenantA },
+      });
+      const steps = await tx.workflowStepRun.findMany({
+        where: { tenantId: tenantA, workflowRunId: conditionRunId },
+        orderBy: { stepIndex: 'asc' },
+      });
+      const evaluatedStep = steps.find((step) => step.stepId === 'check');
+      const audit = evaluatedStep
+        ? await tx.auditLog.findFirst({
+            where: {
+              tenantId: tenantA,
+              action: 'workflow.condition.evaluated',
+              resourceType: 'workflow_step_run',
+              resourceId: evaluatedStep.id,
+            },
+          })
+        : null;
+      return { run, steps, audit };
+    });
+    expect(conditionResult.run?.status).toBe('COMPLETED');
+    expect(conditionResult.steps.map((step) => step.status)).toEqual([
+      'COMPLETED',
+      'SKIPPED',
+      'COMPLETED',
+    ]);
+    expect(conditionResult.steps[0]?.output).toMatchObject({
+      result: false,
+      selectedBranch: 'onFalse',
+      nextStepId: 'false-end',
+    });
+    expect(conditionResult.audit?.metadata).toMatchObject({
+      result: false,
+      selectedBranch: 'onFalse',
+      nextStepId: 'false-end',
+    });
+  });
+
+  it('completes successfully when the selected condition branch is absent', async () => {
+    const noBranchRunId = await withTenant(runtime, tenantA, async (tx) => {
+      const workflow = await tx.workflow.create({
+        data: {
+          tenantId: tenantA,
+          key: `workflow-run-condition-no-branch-${suffix}`,
+          version: 1,
+          name: 'Condition without false branch',
+          trigger: 'test.trigger',
+          status: 'ACTIVE',
+          publishedAt: new Date(),
+          definition: {
+            steps: [
+              {
+                id: 'check',
+                type: 'condition',
+                config: { condition: { field: 'lead.status', operator: 'eq', value: 'NEW' } },
+              },
+              { id: 'unused', type: 'end', config: {} },
+            ],
+          },
+        },
+      });
+      const run = await tx.workflowRun.create({
+        data: {
+          tenantId: tenantA,
+          workflowId: workflow.id,
+          workflowVersion: workflow.version,
+          triggerEvent: workflow.trigger,
+          idempotencyKey: `workflow-run-condition-no-branch-${suffix}`,
+        },
+      });
+      return run.id;
+    });
+
+    expect(
+      (await executor.handle({ tenantId: tenantA, runId: noBranchRunId, action: 'start' })).result,
+    ).toBe('completed');
+    const noBranch = await withTenant(runtime, tenantA, async (tx) => ({
+      run: await tx.workflowRun.findFirst({ where: { id: noBranchRunId, tenantId: tenantA } }),
+      steps: await tx.workflowStepRun.findMany({
+        where: { tenantId: tenantA, workflowRunId: noBranchRunId },
+        orderBy: { stepIndex: 'asc' },
       }),
     }));
-    expect(failed.run).toMatchObject({ status: 'FAILED', currentStepId: 'check-reply' });
-    expect(failed.run?.error).toBe('step_type_not_implemented:condition');
-    expect(failed.step).toMatchObject({ status: 'FAILED', error: 'step_type_not_implemented' });
+    expect(noBranch.run?.status).toBe('COMPLETED');
+    expect(noBranch.steps.map((step) => step.status)).toEqual(['COMPLETED', 'SKIPPED']);
+    expect(noBranch.steps[0]?.output).toMatchObject({ result: false, selectedBranch: 'onFalse' });
+  });
+
+  it('does not resolve domain context records owned by another tenant', async () => {
+    const foreignIds = await withTenant(runtime, tenantB, async (tx) => {
+      const contact = await tx.contact.create({ data: { tenantId: tenantB } });
+      const lead = await tx.lead.create({ data: { tenantId: tenantB, contactId: contact.id } });
+      return { contactId: contact.id, leadId: lead.id };
+    });
+    const contextRunId = await withTenant(runtime, tenantA, async (tx) => {
+      const event = await tx.event.create({
+        data: {
+          tenantId: tenantA,
+          name: 'lead.created',
+          version: 1,
+          payload: foreignIds,
+          idempotencyKey: `workflow-run-foreign-context-event-${suffix}`,
+        },
+      });
+      const workflow = await tx.workflow.create({
+        data: {
+          tenantId: tenantA,
+          key: `workflow-run-foreign-context-${suffix}`,
+          version: 1,
+          name: 'Foreign context reference',
+          trigger: event.name,
+          status: 'ACTIVE',
+          publishedAt: new Date(),
+          definition: {
+            steps: [
+              {
+                id: 'check',
+                type: 'condition',
+                config: {
+                  condition: { field: 'lead.status', operator: 'exists' },
+                  onTrue: 'leaked',
+                  onFalse: 'safe',
+                },
+              },
+              { id: 'leaked', type: 'end', config: {} },
+              { id: 'safe', type: 'end', config: {} },
+            ],
+          },
+        },
+      });
+      const run = await tx.workflowRun.create({
+        data: {
+          tenantId: tenantA,
+          workflowId: workflow.id,
+          workflowVersion: workflow.version,
+          triggerEvent: event.name,
+          triggerEventId: event.id,
+          idempotencyKey: `workflow-run-foreign-context-${suffix}`,
+        },
+      });
+      return run.id;
+    });
+
+    expect(
+      (await executor.handle({ tenantId: tenantA, runId: contextRunId, action: 'start' })).result,
+    ).toBe('completed');
+    const contextRun = await withTenant(runtime, tenantA, (tx) =>
+      tx.workflowStepRun.findFirst({
+        where: { tenantId: tenantA, workflowRunId: contextRunId, stepId: 'check' },
+      }),
+    );
+    expect(contextRun?.output).toMatchObject({ result: false, selectedBranch: 'onFalse' });
+  });
+
+  it('fails invalid runtime condition configuration with an explicit step error', async () => {
+    const invalidRunId = await withTenant(runtime, tenantA, async (tx) => {
+      const workflow = await tx.workflow.create({
+        data: {
+          tenantId: tenantA,
+          key: `workflow-run-condition-invalid-${suffix}`,
+          version: 1,
+          name: 'Invalid condition',
+          trigger: 'test.trigger',
+          status: 'ACTIVE',
+          publishedAt: new Date(),
+          definition: { steps: [{ id: 'check', type: 'condition', config: {} }] },
+        },
+      });
+      const run = await tx.workflowRun.create({
+        data: {
+          tenantId: tenantA,
+          workflowId: workflow.id,
+          workflowVersion: workflow.version,
+          triggerEvent: workflow.trigger,
+          idempotencyKey: `workflow-run-condition-invalid-${suffix}`,
+        },
+      });
+      return run.id;
+    });
+
+    expect(
+      (await executor.handle({ tenantId: tenantA, runId: invalidRunId, action: 'start' })).result,
+    ).toBe('failed');
+    const invalid = await withTenant(runtime, tenantA, async (tx) => ({
+      run: await tx.workflowRun.findFirst({ where: { id: invalidRunId, tenantId: tenantA } }),
+      step: await tx.workflowStepRun.findFirst({
+        where: { tenantId: tenantA, workflowRunId: invalidRunId, stepId: 'check' },
+      }),
+    }));
+    expect(invalid.run).toMatchObject({
+      status: 'FAILED',
+      error: 'invalid_condition_configuration',
+    });
+    expect(invalid.step).toMatchObject({
+      status: 'FAILED',
+      error: 'invalid_condition_configuration',
+    });
   });
 
   it('cannot read or advance another tenant’s run', async () => {

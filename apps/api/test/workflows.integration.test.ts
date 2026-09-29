@@ -115,6 +115,55 @@ describe('workflow definition management (VOS-081)', () => {
       ).status,
     ).toBe(400);
 
+    const invalidCondition = await request('POST', '/workflows', ownerToken, {
+      key: `invalid_condition_${suffix}`,
+      name: 'Invalid condition DSL',
+      trigger: 'lead.status_changed',
+      definition: {
+        steps: [
+          { id: 'check', type: 'condition', config: { expression: 'lead.status == NEW' } },
+          { id: 'finish', type: 'end', config: {} },
+        ],
+      },
+    });
+    expect(invalidCondition.status).toBe(201);
+    const invalidConditionDraft = (await invalidCondition.json()) as { id: string };
+    expect(
+      (
+        await request('PATCH', `/workflows/${invalidConditionDraft.id}/status`, ownerToken, {
+          status: 'ACTIVE',
+        })
+      ).status,
+    ).toBe(400);
+
+    const structuredCondition = await request('POST', '/workflows', ownerToken, {
+      key: `structured_condition_${suffix}`,
+      name: 'Structured condition',
+      trigger: 'lead.status_changed',
+      definition: {
+        steps: [
+          {
+            id: 'check',
+            type: 'condition',
+            config: {
+              condition: { field: 'lead.status', operator: 'eq', value: 'QUALIFIED' },
+              onTrue: 'finish',
+            },
+          },
+          { id: 'finish', type: 'end', config: {} },
+        ],
+      },
+    });
+    expect(structuredCondition.status).toBe(201);
+    const structuredConditionDraft = (await structuredCondition.json()) as { id: string };
+    expect(
+      (
+        await request('PATCH', `/workflows/${structuredConditionDraft.id}/status`, ownerToken, {
+          status: 'ACTIVE',
+        })
+      ).status,
+    ).toBe(200);
+
     const created = await request('POST', '/workflows', ownerToken, {
       key: `workflow_${suffix}`,
       name: 'Missed call recovery',

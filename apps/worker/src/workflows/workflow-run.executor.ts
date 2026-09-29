@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { parseWorkflowDefinition, type WorkflowStepDefinition } from '@vautrin/contracts';
+import {
+  parseWorkflowConditionStepConfig,
+  parseWorkflowDefinition,
+  type WorkflowStepDefinition,
+} from '@vautrin/contracts';
 import {
   type Prisma,
   StepRunStatus,
@@ -11,7 +15,13 @@ import {
 import { assertWorkflowRunJob, type WorkflowRunJob } from '@vautrin/queues';
 
 import { DatabaseService } from '../database/database.service.js';
+import { evaluateWorkflowCondition, WorkflowConditionError } from './condition-evaluator.js';
 import { parseWaitStepDuration } from './wait-duration.js';
+import {
+  WorkflowContextBuildError,
+  WorkflowContextBuilder,
+  type WorkflowContextMetadata,
+} from './workflow-context.builder.js';
 
 interface LockedWorkflowRun {
   readonly id: string;
@@ -23,10 +33,13 @@ export interface WorkflowExecutionResult {
   readonly runId: string;
 }
 
-/** Executes the explicitly implemented v0.3 WAIT and END step types. */
+/** Executes the explicitly implemented v0.3 CONDITION, WAIT, and END steps. */
 @Injectable()
 export class WorkflowRunExecutor {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly workflowContextBuilder: WorkflowContextBuilder,
+  ) {}
 
   handle(value: unknown): Promise<WorkflowExecutionResult> {
     assertWorkflowRunJob(value);
@@ -69,7 +82,7 @@ export class WorkflowRunExecutor {
           tenantId: context.tenantId,
           version: run.workflowVersion,
         },
-        select: { definition: true },
+        select: { id: true, key: true, version: true, trigger: true, definition: true },
       });
       if (!workflow) return this.failRun(tx, run.id, context.tenantId, 'workflow_version_missing');
 
@@ -124,7 +137,19 @@ export class WorkflowRunExecutor {
         nextIndex++;
       }
 
-      return this.executeFrom(tx, run, context.tenantId, definition.steps, nextIndex);
+      return this.executeFrom(
+        tx,
+        run,
+        context.tenantId,
+        {
+          id: workflow.id,
+          key: workflow.key,
+          version: workflow.version,
+          trigger: workflow.trigger,
+        },
+        definition.steps,
+        nextIndex,
+      );
     });
   }
 
@@ -132,6 +157,7 @@ export class WorkflowRunExecutor {
     tx: TenantScopedClient,
     run: WorkflowRun,
     tenantId: string,
+    workflow: WorkflowContextMetadata,
     steps: readonly WorkflowStepDefinition[],
     startIndex: number,
   ): Promise<WorkflowExecutionResult> {
@@ -152,6 +178,10 @@ export class WorkflowRunExecutor {
     }
 
     const idempotencyKey = `run-${run.id}-step-${step.id}`;
+    if (step.type === 'condition') {
+      return this.executeCondition(tx, run, tenantId, workflow, steps, startIndex, step);
+    }
+
     if (step.type === 'wait') {
       let durationMs: number;
       try {
@@ -248,6 +278,187 @@ export class WorkflowRunExecutor {
       },
     });
     return this.failRun(tx, run.id, tenantId, `step_type_not_implemented:${step.type}`, step.id);
+  }
+
+  private async executeCondition(
+    tx: TenantScopedClient,
+    run: WorkflowRun,
+    tenantId: string,
+    workflow: WorkflowContextMetadata,
+    steps: readonly WorkflowStepDefinition[],
+    stepIndex: number,
+    step: WorkflowStepDefinition,
+  ): Promise<WorkflowExecutionResult> {
+    const idempotencyKey = `run-${run.id}-step-${step.id}`;
+    const startedAt = new Date();
+    let config: ReturnType<typeof parseWorkflowConditionStepConfig>;
+    try {
+      config = parseWorkflowConditionStepConfig(step.config, steps, stepIndex);
+    } catch {
+      await this.persistConditionFailure(
+        tx,
+        run,
+        tenantId,
+        step,
+        stepIndex,
+        idempotencyKey,
+        startedAt,
+        'invalid_condition_configuration',
+      );
+      return this.failRun(tx, run.id, tenantId, 'invalid_condition_configuration', step.id);
+    }
+
+    let result: boolean;
+    try {
+      const context = await this.workflowContextBuilder.build(
+        tx,
+        tenantId,
+        run,
+        workflow,
+        stepIndex,
+      );
+      result = evaluateWorkflowCondition(config.condition, context);
+    } catch (error) {
+      const reason =
+        error instanceof WorkflowConditionError
+          ? `condition_${error.code}`
+          : error instanceof WorkflowContextBuildError
+            ? `condition_${error.code}`
+            : 'condition_evaluation_failed';
+      await this.persistConditionFailure(
+        tx,
+        run,
+        tenantId,
+        step,
+        stepIndex,
+        idempotencyKey,
+        startedAt,
+        reason,
+      );
+      return this.failRun(tx, run.id, tenantId, reason, step.id);
+    }
+
+    const selectedBranch = result ? 'onTrue' : 'onFalse';
+    const nextStepId = result ? config.onTrue : config.onFalse;
+    const completedAt = new Date();
+    const stepRun = await tx.workflowStepRun.create({
+      data: {
+        tenantId,
+        workflowRunId: run.id,
+        stepId: step.id,
+        stepIndex,
+        stepType: WorkflowStepType.CONDITION,
+        status: StepRunStatus.COMPLETED,
+        input: config as unknown as Prisma.InputJsonValue,
+        output: {
+          condition: config.condition,
+          result,
+          selectedBranch,
+          nextStepId: nextStepId ?? null,
+        } as Prisma.InputJsonValue,
+        idempotencyKey,
+        startedAt,
+        completedAt,
+        durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+      },
+    });
+    await this.auditCondition(tx, tenantId, run, stepRun.id, {
+      condition: config.condition,
+      result,
+      selectedBranch,
+      nextStepId: nextStepId ?? null,
+    });
+
+    const nextIndex = nextStepId ? steps.findIndex((candidate) => candidate.id === nextStepId) : -1;
+    const skipUntil = nextStepId ? nextIndex : steps.length;
+    if (skipUntil < 0) {
+      return this.failRun(tx, run.id, tenantId, 'invalid_condition_branch', step.id);
+    }
+    if (skipUntil > stepIndex + 1) {
+      await tx.workflowStepRun.createMany({
+        data: steps.slice(stepIndex + 1, skipUntil).map((skipped, offset) => ({
+          tenantId,
+          workflowRunId: run.id,
+          stepId: skipped.id,
+          stepIndex: stepIndex + 1 + offset,
+          stepType: toDatabaseStepType(skipped.type),
+          status: StepRunStatus.SKIPPED,
+          idempotencyKey: `run-${run.id}-step-${skipped.id}`,
+          error: 'condition_branch_not_selected',
+          completedAt,
+        })),
+      });
+    }
+
+    if (!nextStepId) {
+      await tx.workflowRun.update({
+        where: { id: run.id, tenantId },
+        data: {
+          status: WorkflowRunStatus.COMPLETED,
+          currentStepId: step.id,
+          scheduledFor: null,
+          completedAt,
+          error: null,
+        },
+      });
+      await this.audit(tx, tenantId, run.id, 'workflow.run.completed');
+      return { result: 'completed', runId: run.id };
+    }
+    return this.executeFrom(tx, run, tenantId, workflow, steps, nextIndex);
+  }
+
+  private async persistConditionFailure(
+    tx: TenantScopedClient,
+    run: WorkflowRun,
+    tenantId: string,
+    step: WorkflowStepDefinition,
+    stepIndex: number,
+    idempotencyKey: string,
+    startedAt: Date,
+    reason: string,
+  ): Promise<void> {
+    const completedAt = new Date();
+    await tx.workflowStepRun.create({
+      data: {
+        tenantId,
+        workflowRunId: run.id,
+        stepId: step.id,
+        stepIndex,
+        stepType: WorkflowStepType.CONDITION,
+        status: StepRunStatus.FAILED,
+        input: step.config as Prisma.InputJsonValue,
+        idempotencyKey,
+        error: reason,
+        startedAt,
+        completedAt,
+        durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+      },
+    });
+  }
+
+  private auditCondition(
+    tx: TenantScopedClient,
+    tenantId: string,
+    run: WorkflowRun,
+    stepRunId: string,
+    result: {
+      readonly condition: unknown;
+      readonly result: boolean;
+      readonly selectedBranch: 'onTrue' | 'onFalse';
+      readonly nextStepId: string | null;
+    },
+  ): Promise<unknown> {
+    return tx.auditLog.create({
+      data: {
+        tenantId,
+        actorType: 'SYSTEM',
+        action: 'workflow.condition.evaluated',
+        resourceType: 'workflow_step_run',
+        resourceId: stepRunId,
+        correlationId: run.correlationId,
+        metadata: result as Prisma.InputJsonValue,
+      },
+    });
   }
 
   private async failRun(

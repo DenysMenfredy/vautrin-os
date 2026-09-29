@@ -261,6 +261,7 @@ Delayed jobs.
 
 ### VOS-085 [P1] Condition step
 Safe condition evaluation.
+**Status:** PARTIAL — bounded structured DSL, typed tenant-scoped runtime context, activation-time structure/operator/field/branch validation, deterministic pure evaluation, false-branch success semantics, and persisted step/audit decisions are implemented. Unit tests and DB-backed activation/runtime integration tests are added; the latter still need a run against PostgreSQL/Redis (not available in this local environment).
 
 ### VOS-086 [P1] Message action
 Send through provider abstraction.

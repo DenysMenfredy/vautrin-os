@@ -12,6 +12,7 @@ import type {
   WorkflowPageResponse,
   WorkflowResponse,
 } from '@vautrin/contracts';
+import { validateWorkflowDefinitionForActivation } from '@vautrin/contracts';
 import {
   Prisma,
   type TenantScopedClient,
@@ -191,6 +192,15 @@ export class WorkflowsService {
   ): Promise<WorkflowResponse> {
     return this.database.withTenant(tenantId, async (tx) => {
       const current = await findWorkflowInTransaction(tx, tenantId, workflowId);
+      if (status === 'ACTIVE') {
+        try {
+          validateWorkflowDefinitionForActivation(current.definition);
+        } catch (error) {
+          throw new BadRequestException(
+            `Workflow definition cannot be activated: ${error instanceof Error ? error.message : 'invalid condition configuration.'}`,
+          );
+        }
+      }
       const allowedFrom: Readonly<Record<WorkflowLifecycleRequest, readonly WorkflowStatus[]>> = {
         ACTIVE: ['DRAFT', 'PAUSED'],
         PAUSED: ['ACTIVE'],

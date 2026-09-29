@@ -4,7 +4,7 @@ Asynchronous job processing for Vautrin OS (VOS-005, ADR-009).
 
 A NestJS **standalone context** — it registers BullMQ queues and exposes no
 HTTP port (SDD-02 §3). The workflow processor consumes durable events, creates
-pending runs, and executes the v0.3 `wait` and `end` steps.
+pending runs, and executes the v0.3 `condition`, `wait`, and `end` steps.
 
 ## Run
 
@@ -77,7 +77,9 @@ The workflow-run reconciler similarly discovers only tenant IDs, then reloads
 and locks pending/waiting runs under tenant RLS. PostgreSQL persists wait intent
 before a delayed BullMQ wake is scheduled; missing queue jobs are recreated
 after Redis loss or process restart. The executor verifies the current step
-and due time before advancing. `condition`, messaging (VOS-086), agent
-invocation (VOS-087), and webhook ingestion (VOS-064) remain pending. The
-worker Dockerfile is present (VOS-023); structured logging remains pending
-(VOS-120).
+and due time before advancing. Condition steps use the structured DSL in
+SDD-07 §4. Their evaluator has no database access; the runtime builds its
+field-limited context under tenant RLS and persists the decision and audit
+metadata. Messaging (VOS-086), agent invocation (VOS-087), and webhook
+ingestion (VOS-064) remain pending. The worker Dockerfile is present (VOS-023);
+structured logging remains pending (VOS-120).
