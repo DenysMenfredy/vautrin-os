@@ -135,14 +135,15 @@ export class TenantService {
         },
       });
 
+      const membershipStatus = user.status === 'ACTIVE' ? 'ACTIVE' : 'INVITED';
       await tx.tenantUser.upsert({
         where: { tenantId_userId: { tenantId: input.tenantId, userId: user.id } },
-        update: { role: input.role, status: 'ACTIVE' },
+        update: { role: input.role, status: membershipStatus },
         create: {
           tenantId: input.tenantId,
           userId: user.id,
           role: input.role,
-          status: 'ACTIVE',
+          status: membershipStatus,
         },
       });
 

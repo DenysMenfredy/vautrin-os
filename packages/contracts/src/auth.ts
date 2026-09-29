@@ -7,6 +7,25 @@ export interface LoginRequest {
   readonly password: string;
 }
 
+/** One-time invitation issuance. The bearer token is returned only here. */
+export interface InvitationResponse {
+  readonly invitationId: string;
+  readonly token: string;
+  readonly expiresAt: string;
+}
+
+export interface CreateInvitationRequest {
+  readonly email: string;
+  readonly role: TenantRoleName;
+}
+
+export interface AcceptInvitationRequest {
+  readonly token: string;
+  /** Sets a password for a new account, or proves an existing account. */
+  readonly password: string;
+  readonly name?: string;
+}
+
 /** A tenant the authenticated user belongs to. */
 export interface TenantMembershipSummary {
   readonly tenantId: string;

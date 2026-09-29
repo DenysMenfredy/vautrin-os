@@ -33,6 +33,20 @@ stored hashed in PostgreSQL, with family-based reuse detection.
 
 Passwords are stored as Argon2id digests, never reversibly.
 
+Registration is operator-controlled (ADR-015): there is no public tenant
+signup. An operator creates the first owner invitation; a tenant member with
+`member.manage` may issue further invitations. Each seven-day, 256-bit bearer
+token is returned once for private delivery and stored only as a SHA-256
+digest. Accepting it requires a new password for a new user, or the existing
+password for an existing user. Expired, revoked, and redeemed tokens fail.
+Invitation acceptance never overwrites an existing user's password.
+Invitation-issued memberships are active only after acceptance, and invited identities cannot
+log in. Automated email delivery and email-address verification are deferred;
+operators must deliver tokens through a trusted channel.
+Existing ACTIVE memberships attached to INVITED identities are demoted to
+INVITED during migration, so accepting one invitation does not activate
+unrelated legacy tenant grants.
+
 ## 3. Authorization
 
 Permissions are scoped to:

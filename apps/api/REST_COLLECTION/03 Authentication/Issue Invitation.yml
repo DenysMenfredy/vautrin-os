@@ -1,0 +1,41 @@
+info:
+  name: Issue Invitation
+  type: http
+  seq: 7
+  tags:
+    - auth
+    - tenant
+http:
+  method: POST
+  url: '{{baseUrl}}/tenant/invitations'
+  headers:
+    - name: Content-Type
+      value: application/json
+  auth:
+    type: bearer
+    token: '{{accessToken}}'
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const email = bru.getEnvVar('inviteEmail');
+        if (!email) {
+          bru.runner.skipRequest();
+        } else {
+          req.setBody({ email, role: 'STAFF' });
+        }
+    - type: after-response
+      code: |-
+        if (res.status === 201) {
+          bru.setVar('invitationToken', res.body.token);
+        }
+    - type: tests
+      code: |-
+        test('issues a one-time invitation', function () {
+          expect(res.status).to.equal(201);
+          expect(res.body.token).to.be.a('string');
+          expect(res.body.invitationId).to.be.a('string');
+        });

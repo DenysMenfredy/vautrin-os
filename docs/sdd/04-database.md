@@ -19,6 +19,7 @@ hardcoded into unrelated domain code.
 tenants
 users
 tenant_users
+tenant_invitations
 refresh_tokens
 business_profiles
 locations
@@ -63,6 +64,13 @@ and neither has an RLS policy (ADR-013).
 
 Tenant-scoped access to people goes through `tenant_users`, which is
 protected.
+
+`tenant_invitations` is tenant-scoped and FORCE-RLS-protected. It persists only
+a SHA-256 token digest, the invited email/role, expiry, and acceptance or
+revocation timestamps. A narrow SECURITY DEFINER function maps a valid digest
+to a tenant ID before authentication; it returns no invitation contents.
+Acceptance then runs entirely in tenant context and compare-and-sets the
+pending row to prevent replay.
 
 V0.3 adds nullable `provider_event_id`, `correlation_id`, and
 `idempotency_key` to `messages`. Unique tenant/provider/event and

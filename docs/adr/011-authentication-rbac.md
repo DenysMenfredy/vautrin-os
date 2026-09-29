@@ -23,6 +23,9 @@ Initial roles:
 
 Permissions are capability-based.
 
+Operator-controlled registration and invitation acceptance are specified in
+ADR-015. This ADR does not authorize public tenant signup.
+
 ## Consequences
 
 Positive:

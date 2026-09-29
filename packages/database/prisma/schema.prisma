@@ -358,6 +358,7 @@ model Tenant {
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
 
   members                TenantUser[]
+  invitations            TenantInvitation[]
   businessProfile        BusinessProfile?
   locations              Location[]
   contacts               Contact[]
@@ -431,6 +432,29 @@ model TenantUser {
   @@index([tenantId, role])
   @@index([userId])
   @@map("tenant_users")
+}
+
+/// Operator-controlled onboarding. Only the SHA-256 digest of a one-time
+/// bearer secret is persisted; acceptance discovers the tenant through a
+/// narrowly scoped SECURITY DEFINER function before entering tenant RLS.
+model TenantInvitation {
+  id         String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  email      String
+  role       TenantRole
+  tokenHash  String     @unique @map("token_hash")
+  expiresAt  DateTime   @map("expires_at") @db.Timestamptz(6)
+  acceptedAt DateTime?  @map("accepted_at") @db.Timestamptz(6)
+  revokedAt  DateTime?  @map("revoked_at") @db.Timestamptz(6)
+  invitedBy  String?    @map("invited_by") @db.Uuid
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, email, acceptedAt, revokedAt])
+  @@index([tenantId, expiresAt])
+  @@map("tenant_invitations")
 }
 
 /// ADR-013 — an opaque, rotating refresh token.

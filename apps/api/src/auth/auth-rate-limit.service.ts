@@ -65,8 +65,16 @@ export class AuthRateLimitService implements OnModuleDestroy {
     return this.report('refresh', firstExceeded(ip, tokenCounter));
   }
 
+  async checkInvitation(ipAddress: string, token: string): Promise<AuthRateLimitDecision> {
+    const [ip, tokenCounter] = await Promise.all([
+      this.hit('invitation-ip', ipAddress, 30, 60, 'ip'),
+      this.hit('invitation-token', token, 10, 60, 'token'),
+    ]);
+    return this.report('invitation', firstExceeded(ip, tokenCounter));
+  }
+
   private report(
-    endpoint: 'login' | 'refresh',
+    endpoint: 'login' | 'refresh' | 'invitation',
     decision: AuthRateLimitDecision,
   ): AuthRateLimitDecision {
     if (!decision.allowed) {

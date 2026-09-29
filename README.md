@@ -10,7 +10,17 @@ human developers and AI coding agents.
 ## Current implementation
 
 The repository has the monorepo, database, tenant-isolation, authentication,
-and CI foundations in place. Business Configuration includes the profile
+and CI foundations in place. Registration is operator-controlled: after
+building `@vautrin/api`, run
+`pnpm --filter @vautrin/api onboard:tenant --slug my-business --name "My Business" --owner-email owner@example.com`.
+The command returns a one-time token for the owner to submit to
+`POST /api/auth/invitations/accept` with a new password. Deliver the token
+privately. Active owners/admins can issue further invitations through
+`POST /api/tenant/invitations`; there is no public tenant signup.
+If the first owner's token expires, the operator can run
+`pnpm --filter @vautrin/api onboard:tenant --reissue-owner --tenant-id UUID --owner-email owner@example.com`.
+
+Business Configuration includes the profile
 (including business-hours configuration), locations, services, service areas,
 custom field definitions, and custom field values. CRM now includes contacts,
 leads, tenant-owned lead sources, lifecycle transitions, assignment, and a
@@ -84,6 +94,7 @@ The architecture is vertical-agnostic even though the first production template 
 - `docs/adr/012-observability.md`
 - `docs/adr/013-session-and-token-strategy.md`
 - `docs/adr/014-service-and-service-area-modeling.md`
+- `docs/adr/015-operator-controlled-onboarding.md`
 
 ### Engineering agent guidance
 - `AGENTS.md`

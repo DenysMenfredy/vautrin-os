@@ -1,0 +1,32 @@
+info:
+  name: Accept Invitation
+  type: http
+  seq: 8
+  tags:
+    - auth
+    - tenant
+http:
+  method: POST
+  url: '{{baseUrl}}/auth/invitations/accept'
+  headers:
+    - name: Content-Type
+      value: application/json
+  body:
+    type: json
+    data: '{}'
+runtime:
+  scripts:
+    - type: before-request
+      code: |-
+        const token = bru.getVar('invitationToken') || bru.getEnvVar('invitationToken');
+        const password = bru.getEnvVar('invitationPassword');
+        if (!token || !password) {
+          bru.runner.skipRequest();
+        } else {
+          req.setBody({ token, password });
+        }
+    - type: tests
+      code: |-
+        test('activates a one-time invitation', function () {
+          expect(res.status).to.equal(204);
+        });

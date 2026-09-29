@@ -70,7 +70,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password.');
     }
 
-    if (user.status === 'DISABLED' || user.deletedAt !== null) {
+    if (user.status !== 'ACTIVE' || user.deletedAt !== null) {
       this.audit.recordAuthFailure({ email, reason: 'account_disabled', context });
       throw new UnauthorizedException('Invalid email or password.');
     }
@@ -126,7 +126,7 @@ export class AuthService {
       where: { id: rotated.userId },
     });
 
-    if (!user || user.status === 'DISABLED' || user.deletedAt !== null) {
+    if (user?.status !== 'ACTIVE' || user.deletedAt !== null) {
       // The account was disabled while the session was alive.
       await this.refreshTokens.revokeAllForUser(rotated.userId, 'account_disabled');
       throw new UnauthorizedException('Invalid refresh token.');

@@ -6,9 +6,16 @@ default and targets `http://localhost:3000/api`.
 
 ## Before running authentication requests
 
-The API does not provide public registration or seed a demo account. Use an
-existing test account provisioned through the application, then enter its
-email and password in the `Local API` environment's secret fields. If the user
+The API does not provide public tenant signup or seed a demo account. After
+building the API, an operator can run
+`pnpm --filter @vautrin/api onboard:tenant --slug my-business --name "My Business" --owner-email owner@example.com`.
+Deliver the one-time owner token privately; the invitee accepts it through
+`POST /auth/invitations/accept` with a new password. Once logged in, an owner
+or admin can issue further invitations through `POST /tenant/invitations`.
+The API returns each token once; do not commit or log it. Set `inviteEmail`
+and `invitationPassword` in Bruno's local environment only when exercising
+those requests. Enter the active account's email and password in the `Local
+API` environment's secret fields. If the user
 has multiple tenant memberships, set `tenantId` to the membership you want to
 exercise. With one membership, tenant switching uses the active tenant returned
 at login.

@@ -11,6 +11,13 @@ A human identity.
 ### TenantUser
 Membership connecting a user to a tenant and role.
 
+### TenantInvitation
+A tenant-scoped, expiring, one-time invitation to join a tenant. It stores an
+email, role, and token digest, not a usable bearer token. Acceptance creates or
+activates a user and membership; an existing user proves identity with their
+current password. The operator issues the first owner invitation, and active
+members with `member.manage` issue subsequent invitations.
+
 ### BusinessProfile
 Business-specific operational configuration.
 The API exposes communication preferences, qualification rules, booking rules,
@@ -82,6 +89,7 @@ A security/operations record of important actions.
 ```text
 Tenant
  ├── TenantUser ── User
+ ├── TenantInvitation
  ├── BusinessProfile
  ├── Location
  ├── Service

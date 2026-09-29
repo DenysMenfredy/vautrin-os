@@ -10,11 +10,13 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiNoContentResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Environment } from '@vautrin/config';
 import type { AuthTokensResponse, CurrentSessionResponse } from '@vautrin/contracts';
 import type { Request, Response } from 'express';
 import { ENVIRONMENT } from '../config/environment.module.js';
+import { AcceptInvitationDto } from '../tenant/dto/invitation.dto.js';
+import { InvitationService } from '../tenant/invitation.service.js';
 import { AuthService } from './auth.service.js';
 import { type AuthRateLimitDecision, AuthRateLimitService } from './auth-rate-limit.service.js';
 import {
@@ -34,8 +36,30 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly rateLimits: AuthRateLimitService,
+    private readonly invitations: InvitationService,
     @Inject(ENVIRONMENT) private readonly environment: Environment,
   ) {}
+
+  @Public()
+  @Post('invitations/accept')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Accept an operator-issued invitation and activate membership',
+    description: 'New users set a password; existing users confirm their current password.',
+  })
+  @ApiNoContentResponse({ description: 'Invitation accepted. Log in to obtain a session.' })
+  async acceptInvitation(
+    @Body() dto: AcceptInvitationDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    assertTrustedOrigin(request, this.environment);
+    enforceRateLimit(
+      response,
+      await this.rateLimits.checkInvitation(request.ip ?? 'unknown', dto.token),
+    );
+    await this.invitations.accept(dto);
+  }
 
   @Public()
   @Post('login')
