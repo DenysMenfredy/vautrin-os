@@ -5,6 +5,7 @@ import {
   createPrismaClient,
   type PrismaClient,
   type TenantScopedClient,
+  type WithTenantOptions,
   withTenant,
   withUser,
 } from '@vautrin/database';
@@ -43,8 +44,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
    * Runs `fn` with PostgreSQL tenant context set, inside one transaction.
    * This is the supported way to reach tenant-scoped data (SDD-05 §3).
    */
-  withTenant<T>(tenantId: string, fn: (tx: TenantScopedClient) => Promise<T>): Promise<T> {
-    return withTenant(this.prisma, tenantId, fn);
+  withTenant<T>(
+    tenantId: string,
+    fn: (tx: TenantScopedClient) => Promise<T>,
+    options?: WithTenantOptions,
+  ): Promise<T> {
+    return withTenant(this.prisma, tenantId, fn, options);
   }
 
   /**

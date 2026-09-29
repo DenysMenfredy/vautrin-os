@@ -21,6 +21,7 @@ import type {
   UpdateServiceAreaRequest,
   UpdateServiceRequest,
 } from '@vautrin/contracts';
+import { bookingRulesSchema, businessHoursSchema } from '@vautrin/contracts';
 import { Prisma } from '@vautrin/database';
 
 import { AuditService } from '../audit/audit.service.js';
@@ -53,6 +54,12 @@ export class BusinessService {
     }
     if (input.displayName !== undefined) assertNonBlank(input.displayName, 'displayName');
     assertProfileSettings(input);
+    if (
+      input.businessHours !== undefined &&
+      !businessHoursSchema.safeParse(input.businessHours).success
+    ) {
+      throw new BadRequestException('businessHours must match the V1 weekly schedule contract.');
+    }
     const profile = await this.database.withTenant(tenantId, async (tx) => {
       const existing = await tx.businessProfile.findUnique({ where: { tenantId } });
       if (!existing && !input.displayName?.trim()) {
@@ -106,6 +113,12 @@ export class BusinessService {
   ): Promise<BusinessSettingsResponse> {
     if (Object.keys(input).length === 0) {
       throw new BadRequestException('At least one business setting is required.');
+    }
+    if (
+      input.bookingRules !== undefined &&
+      !bookingRulesSchema.safeParse(input.bookingRules).success
+    ) {
+      throw new BadRequestException('bookingRules must match the V1 booking policy contract.');
     }
     const profile = await this.database.withTenant(tenantId, async (tx) => {
       const updated = await tx.businessProfile.updateMany({

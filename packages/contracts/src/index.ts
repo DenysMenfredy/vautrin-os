@@ -6,15 +6,18 @@
  * framework-specific. SDD-02 §6 — "Frontend must not depend on backend
  * internal domain entities."
  *
- * These are plain types with no runtime dependency, so both a NestJS server
- * and a Nuxt browser bundle can import them. The API's DTO classes carry the
+ * Most exports are plain types; the Booking Rules V1 Zod schemas are shared
+ * runtime validation contracts. Both a NestJS server and a Nuxt browser bundle
+ * can import them. The API's DTO classes carry the
  * OpenAPI decorators and `implements` these interfaces, which means a change
  * to a response shape fails to compile on the server rather than silently
  * breaking the client.
  */
 
 export * from './agents.js';
+export * from './appointments.js';
 export * from './auth.js';
+export * from './booking-rules.js';
 export * from './business.js';
 export * from './contacts.js';
 export * from './conversations.js';

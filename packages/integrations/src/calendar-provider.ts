@@ -42,9 +42,24 @@ export interface CancelCalendarAppointmentInput extends CalendarContext {
   readonly providerEventId: string;
 }
 
+export interface FindCalendarAppointmentInput extends CalendarContext {
+  readonly appointmentId: string;
+}
+
+export interface RescheduleCalendarAppointmentInput extends CalendarContext, CalendarInterval {
+  readonly appointmentId: string;
+  readonly providerEventId: string;
+  readonly timeZone: string;
+}
+
 export interface CalendarProvider {
   getAvailability(input: AvailabilityInput): Promise<AvailabilityResult>;
+  /** Reconciles a timed-out insert by its stable local identity. */
+  findAppointment(input: FindCalendarAppointmentInput): Promise<CalendarAppointmentResult | null>;
   createAppointment(input: CreateCalendarAppointmentInput): Promise<CalendarAppointmentResult>;
+  rescheduleAppointment(
+    input: RescheduleCalendarAppointmentInput,
+  ): Promise<CalendarAppointmentResult>;
   cancelAppointment(input: CancelCalendarAppointmentInput): Promise<void>;
 }
 

@@ -17,6 +17,8 @@ export interface ErrorResponseBody {
   readonly timestamp: string;
   /** Ties a client-reported failure to server logs (SDD-10 §6). */
   readonly correlationId?: string;
+  readonly code?: string;
+  readonly missingFields?: readonly string[];
 }
 
 /**
@@ -44,6 +46,12 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const payload = exception.getResponse();
+      const details =
+        typeof payload === 'object' && payload !== null
+          ? (payload as Record<string, unknown>)
+          : null;
+      const code = details?.code;
+      const missingFields = details?.missingFields;
 
       response.status(status).json({
         statusCode: status,
@@ -54,6 +62,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
             : ((payload as { message?: string | string[] }).message ?? exception.message),
         path: request.originalUrl,
         timestamp: new Date().toISOString(),
+        ...(typeof code === 'string' && /^BOOKING_[A-Z_]+$/.test(code) ? { code } : {}),
+        ...(Array.isArray(missingFields) &&
+        missingFields.every(
+          (field) => typeof field === 'string' && /^(?:contact|lead)\.[a-zA-Z]+$/.test(field),
+        )
+          ? { missingFields }
+          : {}),
         ...(correlationId ? { correlationId } : {}),
       } satisfies ErrorResponseBody);
       return;

@@ -288,13 +288,13 @@ Bounded retries + escalation.
 ## EPIC E9 — Appointments
 
 ### VOS-090 [P1] Calendar provider interface
-**Status:** DONE — `@vautrin/integrations` defines tenant-aware availability, create, and cancel operations.
+**Status:** DONE — `@vautrin/integrations` defines tenant-aware availability, create, find/reconcile, reschedule, and cancel operations.
 
 ### VOS-091 [P1] Calendar adapter
-**Status:** PARTIAL — Google Calendar v3 REST adapter queries free/busy and inserts/cancels events, with a stable local appointment ID and conflict check. A tenant-scoped connection resolver refreshes access tokens from an operator-provisioned secret reference. OAuth consent/callback and integration provisioning, plus booking use-case wiring, remain.
+**Status:** PARTIAL — Google Calendar v3 REST adapter queries free/busy, inserts/reconciles, reschedules, and cancels events. A tenant-scoped connection resolver refreshes access tokens from an operator-provisioned secret reference. Booking use cases are wired through the provider boundary. OAuth consent/callback and integration provisioning remain.
 
 ### VOS-092 [P1] Appointment domain
-State and validation.
+**Status:** PARTIAL — tenant-scoped read/list, deterministic V1 availability, create, cancel and reschedule APIs are implemented with validated business hours/booking rules, cross-tenant checks, provider-backed conflict checks, idempotent creation, audit and an outbox event. Provider-mocked API tests pass. OAuth self-service provisioning, agent-facing booking tool and production-like E2E path remain.
 
 ### VOS-093 [P1] Booking tool
 AI-authorized appointment creation.

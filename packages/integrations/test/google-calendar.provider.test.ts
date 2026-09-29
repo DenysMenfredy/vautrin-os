@@ -94,6 +94,48 @@ describe('Google Calendar provider', () => {
     });
   });
 
+  it('reconciles a previously inserted event by stable ID and detects absence', async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json(event()))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const provider = new GoogleCalendarProvider(request);
+    expect(await provider.findAppointment({ ...context, appointmentId })).toEqual({
+      providerEventId: eventId,
+      startsAt,
+      endsAt,
+    });
+    expect(await provider.findAppointment({ ...context, appointmentId })).toBeNull();
+    expect(request.mock.calls[0]?.[1]?.method).toBe('GET');
+  });
+
+  it('patches only the existing matching event and checks the returned identity', async () => {
+    const next = new Date('2026-10-02T13:00:00.000Z');
+    const nextEnd = new Date('2026-10-02T14:00:00.000Z');
+    const request = vi.fn<typeof fetch>().mockResolvedValueOnce(
+      json({
+        ...event(next.toISOString()),
+        end: { dateTime: nextEnd.toISOString() },
+      }),
+    );
+    const provider = new GoogleCalendarProvider(request);
+    expect(
+      await provider.rescheduleAppointment({
+        ...context,
+        appointmentId,
+        providerEventId: eventId,
+        startsAt: next,
+        endsAt: nextEnd,
+        timeZone: 'America/New_York',
+      }),
+    ).toEqual({ providerEventId: eventId, startsAt: next, endsAt: nextEnd });
+    expect(request.mock.calls[0]?.[1]?.method).toBe('PATCH');
+    expect(JSON.parse(String(request.mock.calls[0]?.[1]?.body))).toMatchObject({
+      start: { dateTime: next.toISOString() },
+      end: { dateTime: nextEnd.toISOString() },
+    });
+  });
+
   it('cancels only the configured event; provider errors do not reveal credentials', async () => {
     const request = vi
       .fn<typeof fetch>()

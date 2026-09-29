@@ -5,6 +5,8 @@ import type {
   CalendarProvider,
   CancelCalendarAppointmentInput,
   CreateCalendarAppointmentInput,
+  FindCalendarAppointmentInput,
+  RescheduleCalendarAppointmentInput,
 } from './calendar-provider.js';
 import { CalendarProviderError } from './calendar-provider.js';
 
@@ -100,6 +102,77 @@ export class GoogleCalendarProvider implements CalendarProvider {
     return { providerEventId: eventId, startsAt: input.startsAt, endsAt: input.endsAt };
   }
 
+  async findAppointment(
+    input: FindCalendarAppointmentInput,
+  ): Promise<CalendarAppointmentResult | null> {
+    assertContext(input);
+    if (!UUID.test(input.appointmentId)) {
+      throw new CalendarProviderError('invalid_booking_input', false);
+    }
+    const eventId = input.appointmentId.replaceAll('-', '').toLowerCase();
+    const response = await this.request(
+      `/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events/${eventId}`,
+      input.accessToken,
+      { method: 'GET' },
+      [404, 410],
+    );
+    if (response.status === 404 || response.status === 410) return null;
+    const event = await safeJson(response);
+    if (
+      event?.id !== eventId ||
+      record(record(event?.extendedProperties)?.private)?.vautrinAppointmentId !==
+        input.appointmentId
+    ) {
+      throw new CalendarProviderError('booking_identity_conflict', false);
+    }
+    const startsAt = dateValue(record(event.start)?.dateTime);
+    const endsAt = dateValue(record(event.end)?.dateTime);
+    if (!startsAt || !endsAt || startsAt >= endsAt) {
+      throw new CalendarProviderError('invalid_provider_response', true);
+    }
+    return { providerEventId: eventId, startsAt, endsAt };
+  }
+
+  async rescheduleAppointment(
+    input: RescheduleCalendarAppointmentInput,
+  ): Promise<CalendarAppointmentResult> {
+    assertContext(input);
+    assertInterval(input.startsAt, input.endsAt);
+    if (
+      !UUID.test(input.appointmentId) ||
+      input.providerEventId !== input.appointmentId.replaceAll('-', '').toLowerCase() ||
+      !input.timeZone.trim()
+    ) {
+      throw new CalendarProviderError('invalid_booking_input', false);
+    }
+    const response = await this.request(
+      `/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events/${input.providerEventId}`,
+      input.accessToken,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          start: { dateTime: input.startsAt.toISOString(), timeZone: input.timeZone },
+          end: { dateTime: input.endsAt.toISOString(), timeZone: input.timeZone },
+        }),
+      },
+    );
+    const event = await safeJson(response);
+    if (
+      event?.id !== input.providerEventId ||
+      record(record(event?.extendedProperties)?.private)?.vautrinAppointmentId !==
+        input.appointmentId ||
+      dateValue(record(event?.start)?.dateTime)?.getTime() !== input.startsAt.getTime() ||
+      dateValue(record(event?.end)?.dateTime)?.getTime() !== input.endsAt.getTime()
+    ) {
+      throw new CalendarProviderError('booking_identity_conflict', false);
+    }
+    return {
+      providerEventId: input.providerEventId,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+    };
+  }
+
   async cancelAppointment(input: CancelCalendarAppointmentInput): Promise<void> {
     assertContext(input);
     if (!/^[a-v0-9]{5,1024}$/.test(input.providerEventId)) {
@@ -109,13 +182,14 @@ export class GoogleCalendarProvider implements CalendarProvider {
       `/calendar/v3/calendars/${encodeURIComponent(input.calendarId)}/events/${input.providerEventId}`,
       input.accessToken,
       { method: 'DELETE' },
+      [404, 410],
     );
   }
 
   private async request(
     path: string,
     accessToken: string,
-    init: { method: 'GET' | 'POST' | 'DELETE'; body?: string },
+    init: { method: 'GET' | 'POST' | 'PATCH' | 'DELETE'; body?: string },
     acceptedErrors: readonly number[] = [],
   ): Promise<Response> {
     let response: Response;

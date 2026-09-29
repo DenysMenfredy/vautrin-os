@@ -33,6 +33,15 @@ export type DomainEventV1 =
         readonly conversationId: string;
         readonly contactId: string;
       };
+    }
+  | {
+      readonly name: 'appointment.created';
+      readonly version: 1;
+      readonly payload: {
+        readonly appointmentId: string;
+        readonly leadId: string;
+        readonly contactId: string;
+      };
     };
 
 export function leadCreatedEvent(leadId: string, contactId: string): DomainEventV1 {
@@ -71,6 +80,18 @@ export function messageSendRequestedEvent(
   };
 }
 
+export function appointmentCreatedEvent(
+  appointmentId: string,
+  leadId: string,
+  contactId: string,
+): DomainEventV1 {
+  return {
+    name: 'appointment.created',
+    version: 1,
+    payload: { appointmentId, leadId, contactId },
+  };
+}
+
 /** Validates JSON read from the outbox before a queue consumer acts on it. */
 export function parseDomainEvent(value: unknown): DomainEventV1 {
   if (!isRecord(value) || value.version !== 1 || !isRecord(value.payload)) {
@@ -103,6 +124,14 @@ export function parseDomainEvent(value: unknown): DomainEventV1 {
     isUuid(payload.contactId)
   ) {
     return messageSendRequestedEvent(payload.messageId, payload.conversationId, payload.contactId);
+  }
+  if (
+    value.name === 'appointment.created' &&
+    isUuid(payload.appointmentId) &&
+    isUuid(payload.leadId) &&
+    isUuid(payload.contactId)
+  ) {
+    return appointmentCreatedEvent(payload.appointmentId, payload.leadId, payload.contactId);
   }
   throw new Error('Unsupported event name or payload.');
 }

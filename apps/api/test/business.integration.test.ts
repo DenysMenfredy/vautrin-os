@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { AllExceptionsFilter } from '../src/common/all-exceptions.filter.js';
 import { TenantService } from '../src/tenant/tenant.service.js';
+import { validBookingRules, validBusinessHours } from './support/booking.js';
 
 let app: INestApplication;
 let baseUrl: string;
@@ -141,12 +142,14 @@ describe('business profile (VOS-040)', () => {
     const updated = await request('PATCH', '/business/profile', ownerToken, {
       displayName: 'North Star Design & Remodel',
       phone: '+15551234567',
+      businessHours: validBusinessHours,
     });
     expect(updated.status).toBe(200);
     expect(await updated.json()).toMatchObject({
       displayName: 'North Star Design & Remodel',
       phone: '+15551234567',
       legalName: 'North Star Home LLC',
+      businessHours: validBusinessHours,
     });
   });
 
@@ -169,7 +172,7 @@ describe('business profile (VOS-040)', () => {
     const settings = {
       communicationPreferences: { preferredChannel: 'email' },
       qualificationRules: { minimumBudget: 5000 },
-      bookingRules: { requireConfirmation: true },
+      bookingRules: validBookingRules,
       aiConfiguration: { enabled: false },
     };
     const updated = await request('PATCH', '/business/settings', ownerToken, settings);
@@ -177,6 +180,24 @@ describe('business profile (VOS-040)', () => {
     expect(await updated.json()).toMatchObject(settings);
     const readBack = await request('GET', '/business/settings', ownerToken);
     expect(await readBack.json()).toMatchObject(settings);
+
+    expect(
+      (
+        await request('PATCH', '/business/settings', ownerToken, {
+          bookingRules: {
+            ...validBookingRules,
+            scheduling: { ...validBookingRules.scheduling, timezone: 'UTC' },
+          },
+        })
+      ).status,
+    ).toBe(400);
+    expect(
+      (
+        await request('PATCH', '/business/profile', ownerToken, {
+          businessHours: { ...validBusinessHours, timezone: 'not-a-timezone' },
+        })
+      ).status,
+    ).toBe(400);
 
     const publicProfile = await request('GET', '/business/profile', staffToken);
     expect(await publicProfile.json()).not.toHaveProperty('aiConfiguration');

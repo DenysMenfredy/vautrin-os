@@ -215,7 +215,7 @@ second callback URL needs to be provisioned. Complete applicable sender
 registration and consent review before live traffic.
 
 The Google Calendar adapter and OAuth refresh client live in
-`@vautrin/integrations`; they are not yet an appointment API. The API's
+`@vautrin/integrations`; appointment API operations use this provider boundary. The API's
 tenant-scoped connection resolver expects a connected `Integration` with
 `provider = google_calendar`, `category = CALENDAR`, and non-secret
 `configuration.calendarId`. Set `credentialsRef` to a tenant-specific
@@ -223,14 +223,37 @@ tenant-scoped connection resolver expects a connected `Integration` with
 JSON containing `clientId`, `clientSecret`, and `refreshToken`. Obtain the
 refresh token through the [Google web-server OAuth flow](https://developers.google.com/identity/protocols/oauth2/web-server)
 with offline access and the minimum Calendar scopes needed for free/busy and
-event changes. Consent, callback handling, and appointment persistence are
-not implemented yet. Do not put access or refresh tokens in business settings.
+event changes. Consent and callback handling are not implemented yet; integration
+credentials must be provisioned by an operator. Do not put access or refresh
+tokens in business settings.
 
 `businessHours` is read and written as part of `/business/profile`; it uses the
-existing tenant profile JSON field. SDD-01/03/04 require weekly availability
-configuration but do not specify a JSON schedule shape, so the API does not
-impose an undocumented weekday/time-slot format. Custom field definitions are
-tenant-scoped and paginated. Definition changes require `business.manage`;
+existing tenant profile JSON field. V1 requires `timezone` plus Monday–Sunday
+entries with `enabled` and zero or more non-overlapping local `HH:mm` periods.
+Overnight periods and date-specific exceptions are not supported. The timezone
+here is authoritative; `bookingRules.scheduling` has no timezone. The validated
+`bookingRules` JSON lives in `/business/settings`. Its required-field paths are
+limited to `contact.name`, `contact.phone`, `contact.address`, and `lead.service`;
+they never create persistence fields. Enabled V1 rules require double-booking
+prevention, because overbooking is deferred. Booking remains unavailable until
+both configurations and exactly one connected Google Calendar integration exist.
+
+`POST /appointments/availability` takes `leadId`, `appointmentTypeId`, `from`,
+and `to` (ISO timestamps; maximum window 31 days). `POST /appointments` takes
+`leadId`, `appointmentTypeId`, `startsAt`, and a UUID `idempotencyKey`; it
+revalidates policy and calendar occupancy at creation.
+`POST /appointments/:id/reschedule` takes `startsAt` and `idempotencyKey`;
+`POST /appointments/:id/cancel` optionally takes `reason`. The existing read/list
+endpoints return tenant-scoped appointments. Booking failures carry a stable
+`BOOKING_*` code, with `missingFields` for qualification failures. The booking
+boundary serializes local writes per tenant and uses a deterministic calendar
+event ID so a create retry can reconcile a provider success after a database
+rollback. Calendar operations are synchronous inside the booking transaction;
+slow provider calls can therefore delay or fail bookings and need operational
+monitoring. A separate agent tool is not yet wired to these API operations.
+
+Custom field definitions are tenant-scoped and paginated. Definition changes
+require `business.manage`;
 custom field value reads/writes instead require the matching entity capability
 (`contact.read/write`, `lead.read/write`, or `estimate.read/write`), with
 `:entityType` set to `CONTACT`, `LEAD`, or `ESTIMATE`. Values can be stored only
@@ -255,6 +278,5 @@ and closes the database pool during a rolling deploy.
 
 ## Not here yet
 
-Outbound messaging, Appointment, Estimate, Workflow, Agent, Knowledge,
-Integration management, Analytics, and structured JSON logging with correlation IDs
+Estimate, Knowledge, integration self-service management, Analytics, and structured JSON logging with correlation IDs
 (VOS-120) remain future work. The API currently uses Nest's default logger.

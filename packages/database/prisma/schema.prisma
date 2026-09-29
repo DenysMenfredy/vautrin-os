@@ -827,6 +827,9 @@ model Appointment {
   contactId      String            @map("contact_id") @db.Uuid
   leadId         String?           @map("lead_id") @db.Uuid
   locationId     String?           @map("location_id") @db.Uuid
+  integrationId  String?           @map("integration_id") @db.Uuid
+  appointmentTypeId String?        @map("appointment_type_id")
+  idempotencyKey String?           @map("idempotency_key") @db.Uuid
   assignedUserId String?           @map("assigned_user_id") @db.Uuid
   status         AppointmentStatus @default(SCHEDULED)
   title          String
@@ -847,9 +850,11 @@ model Appointment {
   contact      Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   lead         Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
   location     Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  integration  Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
   assignedUser User?     @relation("AppointmentAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
 
   @@unique([tenantId, provider, providerEventId])
+  @@unique([tenantId, idempotencyKey])
   @@index([tenantId, startsAt])
   @@index([tenantId, status, startsAt])
   @@map("appointments")
@@ -1205,6 +1210,7 @@ model Integration {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
 
   @@unique([tenantId, provider, externalAccountId])
   @@index([tenantId, category, status])
