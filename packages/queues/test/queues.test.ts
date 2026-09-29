@@ -41,13 +41,23 @@ describe('shared queue contract (VOS-012)', () => {
     const runId = '0192f1a0-1b2c-7d3e-8f40-51627384950b';
     const start = { tenantId, runId, action: 'start' as const };
     const wake = { tenantId, runId, action: 'wake' as const, stepId: 'wait-before-send' };
+    const retry = {
+      tenantId,
+      runId,
+      action: 'retry' as const,
+      stepId: 'send-before-wait',
+      attempt: 2,
+    };
 
     expect(WORKFLOW_RUN_JOB).toBe('workflow.run');
     expect(workflowRunJobId(start)).toBe(`workflow-${runId}-start`);
     expect(workflowRunJobId(wake)).toBe(`workflow-${runId}-wake-wait-before-send`);
+    expect(workflowRunJobId(retry)).toBe(`workflow-${runId}-retry-send-before-wait-2`);
     expect(() => assertWorkflowRunJob(start)).not.toThrow();
     expect(() => assertWorkflowRunJob(wake)).not.toThrow();
+    expect(() => assertWorkflowRunJob(retry)).not.toThrow();
     expect(() => assertWorkflowRunJob({ ...wake, tenantId: 'invalid' })).toThrow();
     expect(() => assertWorkflowRunJob({ ...wake, stepId: 'not valid' })).toThrow();
+    expect(() => assertWorkflowRunJob({ ...retry, attempt: 1 })).toThrow();
   });
 });

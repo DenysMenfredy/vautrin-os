@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
+import { AgentsModule } from './agents/agents.module.js';
 import { EnvironmentModule } from './config/environment.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
@@ -10,13 +10,14 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
 /**
  * Worker composition root (ADR-009).
  *
- * Durable-event dispatch and tenant-aware outbound SMS are the first feature
- * processors. Workflow actions and agent execution follow later.
+ * Durable-event dispatch, tenant-aware outbound SMS, and the v0.3 workflow
+ * message action are the first feature processors. Agent execution follows.
  */
 @Module({
   imports: [
     EnvironmentModule,
     DatabaseModule,
+    AgentsModule,
     QueuesModule,
     WorkflowsModule,
     OutboxModule,

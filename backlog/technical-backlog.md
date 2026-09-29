@@ -212,18 +212,23 @@ Read/write/delete isolation.
 
 ### VOS-070 [P1] LLMProvider interface
 Generation/streaming contract.
+**Status:** DONE — provider-neutral generation/streaming, tool-call, usage, cost, and stream-event contracts exist in `@vautrin/integrations`; no provider SDK is included.
 
 ### VOS-071 [P1] First LLM adapter
 Select provider during implementation.
+**Status:** OPEN — intentionally deferred until the product owner selects an LLM provider.
 
 ### VOS-072 [P1] Agent entity/configuration
 Versioned agent configuration.
+**Status:** DONE — tenant-scoped draft/list/read/update/version/lifecycle APIs; activation freezes each version in PostgreSQL. Model config rejects credential values and redacts legacy secret-shaped keys on reads.
 
 ### VOS-073 [P1] Tool framework
 Typed tool contracts + authorization.
+**Status:** PARTIAL — typed allow-listed registry, input/output parsing, permission and approval gates, PostgreSQL idempotency claims, and tenant-scoped tool audit persistence are implemented. Concrete receptionist tools and runtime wiring remain.
 
 ### VOS-074 [P1] Business context builder
 Structured tenant context.
+**Status:** DONE — builds tenant-scoped business/services/service-areas/location and optional lead/contact/conversation context with bounded recent messages and explicit PII exclusions.
 
 ### VOS-075 [P1] Knowledge document model
 Tenant knowledge.
@@ -236,6 +241,7 @@ Tenant-filtered semantic retrieval.
 
 ### VOS-078 [P1] Agent execution telemetry
 Agent/tool/provider metadata.
+**Status:** PARTIAL — provider/model, agent/prompt versions, token/cached-token counts, estimated cost, latency, structured result, tool count, failure, and handoff persistence are implemented; the runtime must call it once a provider adapter is selected.
 
 ---
 
@@ -250,21 +256,22 @@ Versioned workflows.
 
 ### VOS-082 [P1] Workflow run model
 Persist execution state.
-**Status:** PARTIAL — event consumption creates one tenant-scoped pending run per event/workflow version; PostgreSQL-backed step/run transitions now cover WAIT, END, and explicit unsupported/invalid failures. Other step executors and full retry/failure policy remain.
+**Status:** PARTIAL — event consumption creates one tenant-scoped pending run per event/workflow version; PostgreSQL-backed step/run transitions cover WAIT, CONDITION, SEND_MESSAGE, END, and explicit unsupported/invalid failures, with persisted bounded retry/failure outcomes. Other step executors remain.
 
 ### VOS-083 [P1] Workflow worker
-**Status:** PARTIAL — RLS-safe event outbox dispatch and idempotent run creation, plus a tenant-scoped workflow-run reconciler and row-locked WAIT/END execution with integration coverage. Other step executors and full retry/failure policy remain.
+**Status:** PARTIAL — RLS-safe event outbox dispatch and idempotent run creation, plus a tenant-scoped workflow-run reconciler and row-locked WAIT/CONDITION/SEND_MESSAGE/END execution with persisted bounded retry state. Other step executors and the full critical-path E2E remain.
 
 ### VOS-084 [P1] Wait step
 Delayed jobs.
-**Status:** PARTIAL — duration validation, durable PostgreSQL scheduling, delayed BullMQ wake-up and restart reconciliation are implemented; broader operational retry/failure-policy behavior remains in VOS-089.
+**Status:** PARTIAL — duration validation, durable PostgreSQL scheduling, delayed BullMQ wake-up and restart reconciliation are implemented; retry jobs share the same recovery path.
 
 ### VOS-085 [P1] Condition step
 Safe condition evaluation.
-**Status:** PARTIAL — bounded structured DSL, typed tenant-scoped runtime context, activation-time structure/operator/field/branch validation, deterministic pure evaluation, false-branch success semantics, and persisted step/audit decisions are implemented. Unit tests and DB-backed activation/runtime integration tests are added; the latter still need a run against PostgreSQL/Redis (not available in this local environment).
+**Status:** DONE — bounded structured DSL, typed tenant-scoped runtime context, activation-time structure/operator/field/branch validation, deterministic pure evaluation, false-branch success semantics, and persisted step/audit decisions are implemented. The condition-specific activation/runtime integration cases pass, and the complete worker integration suite is green.
 
 ### VOS-086 [P1] Message action
 Send through provider abstraction.
+**Status:** DONE — literal SMS body config queues a tenant-scoped message and `message.send_requested` outbox event atomically with the step and audit records; existing notification processing routes through the Twilio provider adapter with send-time opt-out checks. Worker integration coverage verifies queue routing, idempotent replay, and opt-out suppression.
 
 ### VOS-087 [P1] Agent action
 Invoke agent.
@@ -274,6 +281,7 @@ Prevent duplicate side effects.
 
 ### VOS-089 [P1] Retry/failure policy
 Bounded retries + escalation.
+**Status:** DONE — activation validates bounded attempts, capped exponential delay, retryable/terminal codes, and stop/skip/escalate/human-handoff actions. PostgreSQL persists retry due time/attempts; scheduler recovers retry jobs. Escalation/handoff requests are audited durably; an operator task/assignment surface remains out of scope.
 
 ---
 
@@ -520,4 +528,4 @@ The v0.3 exit gate is the provider-mocked missed-call-to-booking E2E path plus a
 
 Only the first coherent slices should be marked DONE as they pass their own acceptance tests. Provider selection and production GCP credentials are not specified by the pack and must not be guessed or committed.
 
-Current v0.3 progress: documentation reconciliation, outbox discovery/dispatch, and durable workflow-run identity are implemented. Workflow definitions now have tenant-scoped draft management, immutable published versions, audited lifecycle operations, and a versioned step envelope; execution is still pending. Conversation/Message APIs, signed Twilio inbound/status callbacks, and an outbound SMS worker with send-time opt-out suppression are implemented. Outbound lifecycle/status reconciliation tests and live provider staging remain. The Google Calendar port, adapter, and tenant-scoped token refresh exist, but OAuth consent/provisioning and the appointment use case are not wired. Workflow step execution, AI, booking, static-web/GCP infrastructure, and the critical-path E2E release gate remain open.
+Current v0.3 progress: workflow retry/failure execution and the provider-neutral AI foundation (agent configuration, context builder, typed tool framework, and telemetry persistence) are implemented in addition to event dispatch and existing condition/wait/message workflow steps. The first LLM adapter and agent-action runtime remain pending provider selection and concrete tools. New API/worker/queue unit suites pass; database-backed integration validation for the added migrations and retry/context/telemetry paths remains. Messaging and calendar provider integrations exist, while OAuth provisioning, booking, receptionist qualification/handoff, remodeling template, deployment infrastructure, and the critical-path E2E release gate remain open.

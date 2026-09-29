@@ -254,6 +254,7 @@ enum ToolSideEffect {
 }
 
 enum ToolExecutionStatus {
+  RUNNING
   SUCCEEDED
   FAILED
   DENIED
@@ -1012,7 +1013,8 @@ model WorkflowStepRun {
 // ---------------------------------------------------------------------------
 
 /// SDD-06 §3 — an AI capability definition. Versioned like workflows so a run
-/// can always be replayed against the configuration that produced it.
+/// can always be replayed against the configuration that produced it. Active
+/// and archived configuration is immutable in PostgreSQL; edits create a new row.
 model Agent {
   id           String      @id @default(dbgenerated("uuidv7()")) @db.Uuid
   tenantId     String      @map("tenant_id") @db.Uuid
@@ -1059,12 +1061,15 @@ model AgentRun {
   model          String
   inputTokens    Int?           @map("input_tokens")
   outputTokens   Int?           @map("output_tokens")
+  cachedInputTokens Int?        @map("cached_input_tokens")
   /// Nullable: not every provider reports cost.
   costAmount     Decimal?       @map("cost_amount") @db.Decimal(12, 6)
   costCurrency   String?        @map("cost_currency")
   latencyMs      Int?           @map("latency_ms")
   toolCount      Int            @default(0) @map("tool_count")
   failureReason  String?        @map("failure_reason")
+  /// Provider-neutral structured result only; raw prompts/transcripts do not belong here.
+  result          Json?
   handoff        Boolean        @default(false)
   handoffReason  String?        @map("handoff_reason")
   correlationId  String?        @map("correlation_id") @db.Uuid

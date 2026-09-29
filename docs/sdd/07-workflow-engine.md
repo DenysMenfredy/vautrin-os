@@ -33,9 +33,9 @@ the version. The supported v0.3 types are `wait`, `condition`, `send_message`,
 `create_lead`, `update_lead`, `create_appointment`, `call_agent`,
 `human_handoff`, and `end`. The step executor owns type-specific `config`
 validation when that step becomes executable; opaque configuration is never
-evaluated as code. Condition steps are validated before activation as specified
-in §4. Trigger conditions, retry policy, and failure policy are stored as JSON,
-but are not interpreted until their execution work lands.
+evaluated as code. Condition steps and retry/failure policies are validated
+before activation as specified in §§4, 7, and 8. Trigger conditions remain
+outside the v0.3 execution scope.
 
 Create starts version 1 in `DRAFT`. Only drafts can be edited. Activating a
 draft publishes it, after which PostgreSQL enforces definition immutability.
@@ -148,6 +148,24 @@ operand types fail the condition step with a stable error code. The executor's
 existing tenant row lock, run/step idempotency keys, and RLS context apply to
 condition execution and persistence.
 
+### Send-message step (VOS-086)
+
+The v0.3 `send_message` config contains exactly one field, a literal `body`
+string of 1–1600 trimmed characters. It does not interpolate expressions or
+evaluate templates. The target is the SMS conversation projected into the
+tenant-scoped workflow context; missing or unavailable conversation context
+fails the step explicitly. Only SMS is executable in v0.3.
+
+Before queuing, the worker verifies the conversation is not closed, the contact has a
+valid E.164 phone number, SMS has not been opted out, and exactly one matching
+active Twilio sender is configured. It then writes the queued outbound message,
+`message.send_requested` outbox event, completed step result, and audit record
+in the same PostgreSQL transaction. The step idempotency key is
+`run-<runId>-step-<stepId>`; the existing outbox dispatcher and outbound
+messaging worker perform provider delivery. The provider worker rechecks
+suppression immediately before sending. Message text is not copied into the
+step input or audit metadata.
+
 ## 5. Execution
 
 ```text
@@ -183,20 +201,34 @@ The same external SMS must not be sent twice because a worker retried.
 
 ## 7. Retry policy
 
-Retries should define:
-- maximum attempts;
-- exponential/backoff strategy;
-- retryable errors;
-- terminal errors.
+`retryPolicy` is a strict object with `maxAttempts` (1–10, including the first
+attempt), `initialDelayMs` (100–60000), `maxDelayMs` (at least the initial delay
+and at most 300000), `retryableErrors`, and `terminalErrors`. Error lists contain
+unique stable error codes; `*` in `retryableErrors` matches any error not
+listed as terminal. Terminal matches always take precedence. Defaults are three
+attempts, 5000 ms initial delay, 300000 ms cap, and empty error lists, so a
+workflow does not retry until it explicitly opts into retryable errors.
+
+For an eligible step failure, the worker persists the step attempt, error,
+next-attempt number, and due time in PostgreSQL, then the scheduler enqueues a
+tenant-bearing retry job. Backoff is deterministic exponential
+`initialDelayMs * 2^(attempt-1)`, capped by `maxDelayMs`. PostgreSQL remains the
+source of truth if Redis loses the delayed job. A step-run row represents its
+latest attempt; prior retry decisions remain in tenant-scoped audit records.
+Unexpected worker/infrastructure exceptions continue to use the bounded queue
+retry defaults and are terminalized by reconciliation after exhaustion.
 
 ## 8. Failure policy
 
-Each workflow must specify what happens when a step fails:
-- retry;
-- skip;
-- stop;
-- escalate;
-- human handoff.
+`failurePolicy` is `{ "action": "retry" | "skip" | "stop" | "escalate" |
+"human_handoff" }`; omitted policy defaults to `stop`. `retry` schedules another
+attempt only when the error is retryable and attempts remain; exhaustion stops
+the run. `skip` marks the failed step and continues at the next step. `stop`
+marks the run failed. `escalate` and `human_handoff` mark the run failed and
+persist explicit tenant-scoped escalation/handoff audit requests. V0.3 does not
+yet have an operator task/assignment surface, so those audit records are the
+durable signal for a later human-work queue; they do not claim that a person was
+notified or assigned.
 
 ## 9. Scheduling
 
@@ -210,10 +242,10 @@ then reloads and locks runs within tenant RLS. Missing jobs are recreated
 after Redis loss or process restarts. On wake, the worker locks and reloads the
 run, checks that the same wait step is still current and due, then advances it.
 
-The executor supports `condition`, `wait`, and `end`. Other admitted step types
-fail the step/run with an explicit `step_type_not_implemented` reason until
-their specified executors land; they are not skipped or interpreted
-dynamically.
+The executor supports `condition`, `wait`, `send_message`, and `end`. Other
+admitted step types fail the step/run with an explicit
+`step_type_not_implemented` reason until their specified executors land; they
+are not skipped or interpreted dynamically.
 
 Do not rely on in-memory timers.
 

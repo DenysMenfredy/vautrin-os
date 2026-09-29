@@ -1,8 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import {
+  isWorkflowErrorRetryable,
   parseWorkflowConditionStepConfig,
   parseWorkflowDefinition,
+  parseWorkflowFailurePolicy,
+  parseWorkflowRetryPolicy,
+  type WorkflowFailurePolicy,
+  type WorkflowRetryPolicy,
   type WorkflowStepDefinition,
+  workflowRetryDelayMs,
 } from '@vautrin/contracts';
 import {
   type Prisma,
@@ -22,10 +28,16 @@ import {
   WorkflowContextBuilder,
   type WorkflowContextMetadata,
 } from './workflow-context.builder.js';
+import { WorkflowMessageStepExecutor } from './workflow-message-step.executor.js';
 
 interface LockedWorkflowRun {
   readonly id: string;
   readonly is_due: boolean;
+}
+
+interface RuntimeWorkflowPolicy {
+  readonly retry: WorkflowRetryPolicy;
+  readonly failure: WorkflowFailurePolicy;
 }
 
 export interface WorkflowExecutionResult {
@@ -33,12 +45,13 @@ export interface WorkflowExecutionResult {
   readonly runId: string;
 }
 
-/** Executes the explicitly implemented v0.3 CONDITION, WAIT, and END steps. */
+/** Executes the explicitly implemented v0.3 CONDITION, WAIT, SEND_MESSAGE, and END steps. */
 @Injectable()
 export class WorkflowRunExecutor {
   constructor(
     private readonly database: DatabaseService,
     private readonly workflowContextBuilder: WorkflowContextBuilder,
+    private readonly workflowMessageStep: WorkflowMessageStepExecutor,
   ) {}
 
   handle(value: unknown): Promise<WorkflowExecutionResult> {
@@ -75,6 +88,17 @@ export class WorkflowRunExecutor {
           return { result: 'ignored', runId: run.id };
         }
       }
+      if (job.action === 'retry') {
+        if (
+          run.status !== WorkflowRunStatus.WAITING ||
+          run.currentStepId !== job.stepId ||
+          run.attempt !== job.attempt ||
+          !run.scheduledFor ||
+          !locked[0].is_due
+        ) {
+          return { result: 'ignored', runId: run.id };
+        }
+      }
 
       const workflow = await tx.workflow.findFirst({
         where: {
@@ -82,9 +106,27 @@ export class WorkflowRunExecutor {
           tenantId: context.tenantId,
           version: run.workflowVersion,
         },
-        select: { id: true, key: true, version: true, trigger: true, definition: true },
+        select: {
+          id: true,
+          key: true,
+          version: true,
+          trigger: true,
+          definition: true,
+          retryPolicy: true,
+          failurePolicy: true,
+        },
       });
       if (!workflow) return this.failRun(tx, run.id, context.tenantId, 'workflow_version_missing');
+
+      let policies: RuntimeWorkflowPolicy;
+      try {
+        policies = {
+          retry: parseWorkflowRetryPolicy(workflow.retryPolicy),
+          failure: parseWorkflowFailurePolicy(workflow.failurePolicy),
+        };
+      } catch {
+        return this.failRun(tx, run.id, context.tenantId, 'invalid_workflow_policy');
+      }
 
       let definition: ReturnType<typeof parseWorkflowDefinition>;
       try {
@@ -96,7 +138,7 @@ export class WorkflowRunExecutor {
       if (job.action === 'start') {
         await tx.workflowRun.update({
           where: { id: run.id, tenantId: context.tenantId },
-          data: { status: WorkflowRunStatus.RUNNING, startedAt: new Date() },
+          data: { status: WorkflowRunStatus.RUNNING, startedAt: new Date(), attempt: 1 },
         });
       }
 
@@ -132,9 +174,33 @@ export class WorkflowRunExecutor {
         });
         await tx.workflowRun.update({
           where: { id: run.id, tenantId: context.tenantId },
-          data: { status: WorkflowRunStatus.RUNNING, scheduledFor: null },
+          data: { status: WorkflowRunStatus.RUNNING, scheduledFor: null, attempt: 1 },
         });
         nextIndex++;
+      }
+
+      if (job.action === 'retry') {
+        nextIndex = definition.steps.findIndex((step) => step.id === job.stepId);
+        const retryStep = definition.steps[nextIndex];
+        const scheduledStep = await tx.workflowStepRun.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            workflowRunId: run.id,
+            stepId: job.stepId,
+            status: StepRunStatus.SCHEDULED,
+            attempt: job.attempt - 1,
+          },
+        });
+        if (!retryStep || !scheduledStep || retryStep.type === 'wait') {
+          return this.failRun(tx, run.id, context.tenantId, 'invalid_retry_state', job.stepId);
+        }
+        await tx.workflowStepRun.delete({
+          where: { id: scheduledStep.id, tenantId: context.tenantId },
+        });
+        await tx.workflowRun.update({
+          where: { id: run.id, tenantId: context.tenantId },
+          data: { status: WorkflowRunStatus.RUNNING, scheduledFor: null, attempt: job.attempt },
+        });
       }
 
       return this.executeFrom(
@@ -149,6 +215,8 @@ export class WorkflowRunExecutor {
         },
         definition.steps,
         nextIndex,
+        policies,
+        job.action === 'retry' ? job.attempt : 1,
       );
     });
   }
@@ -160,6 +228,8 @@ export class WorkflowRunExecutor {
     workflow: WorkflowContextMetadata,
     steps: readonly WorkflowStepDefinition[],
     startIndex: number,
+    policies: RuntimeWorkflowPolicy,
+    attempt: number,
   ): Promise<WorkflowExecutionResult> {
     const step = steps[startIndex];
     if (!step) {
@@ -179,7 +249,31 @@ export class WorkflowRunExecutor {
 
     const idempotencyKey = `run-${run.id}-step-${step.id}`;
     if (step.type === 'condition') {
-      return this.executeCondition(tx, run, tenantId, workflow, steps, startIndex, step);
+      return this.executeCondition(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        startIndex,
+        step,
+        policies,
+        attempt,
+      );
+    }
+
+    if (step.type === 'send_message') {
+      return this.executeSendMessage(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        startIndex,
+        step,
+        policies,
+        attempt,
+      );
     }
 
     if (step.type === 'wait') {
@@ -198,10 +292,22 @@ export class WorkflowRunExecutor {
             input: step.config as Prisma.InputJsonValue,
             idempotencyKey,
             error: 'invalid_wait_configuration',
+            attempt,
+            maxAttempts: policies.retry.maxAttempts,
             completedAt: new Date(),
           },
         });
-        return this.failRun(tx, run.id, tenantId, 'invalid_wait_configuration', step.id);
+        return this.handleStepFailure(
+          tx,
+          run,
+          tenantId,
+          workflow,
+          steps,
+          startIndex,
+          'invalid_wait_configuration',
+          policies,
+          attempt,
+        );
       }
 
       const [scheduled] = await tx.$queryRaw<Array<{ scheduled_for: Date }>>`
@@ -218,6 +324,8 @@ export class WorkflowRunExecutor {
           status: StepRunStatus.SCHEDULED,
           input: step.config as Prisma.InputJsonValue,
           idempotencyKey,
+          attempt,
+          maxAttempts: policies.retry.maxAttempts,
           startedAt: new Date(),
           scheduledFor: scheduled.scheduled_for,
         },
@@ -245,6 +353,8 @@ export class WorkflowRunExecutor {
           stepType: WorkflowStepType.END,
           status: StepRunStatus.COMPLETED,
           idempotencyKey,
+          attempt,
+          maxAttempts: policies.retry.maxAttempts,
           startedAt: now,
           completedAt: now,
           durationMs: 0,
@@ -273,11 +383,81 @@ export class WorkflowRunExecutor {
         stepType: toDatabaseStepType(step.type),
         status: StepRunStatus.FAILED,
         idempotencyKey,
+        attempt,
+        maxAttempts: policies.retry.maxAttempts,
         error: 'step_type_not_implemented',
         completedAt: new Date(),
       },
     });
-    return this.failRun(tx, run.id, tenantId, `step_type_not_implemented:${step.type}`, step.id);
+    return this.handleStepFailure(
+      tx,
+      run,
+      tenantId,
+      workflow,
+      steps,
+      startIndex,
+      `step_type_not_implemented:${step.type}`,
+      policies,
+      attempt,
+    );
+  }
+
+  private async executeSendMessage(
+    tx: TenantScopedClient,
+    run: WorkflowRun,
+    tenantId: string,
+    workflow: WorkflowContextMetadata,
+    steps: readonly WorkflowStepDefinition[],
+    stepIndex: number,
+    step: WorkflowStepDefinition,
+    policies: RuntimeWorkflowPolicy,
+    attempt: number,
+  ): Promise<WorkflowExecutionResult> {
+    const startedAt = new Date();
+    const idempotencyKey = `run-${run.id}-step-${step.id}`;
+    const result = await this.workflowMessageStep.execute(
+      tx,
+      run,
+      tenantId,
+      workflow,
+      stepIndex,
+      step,
+    );
+    const completedAt = new Date();
+    await tx.workflowStepRun.create({
+      data: {
+        tenantId,
+        workflowRunId: run.id,
+        stepId: step.id,
+        stepIndex,
+        stepType: WorkflowStepType.SEND_MESSAGE,
+        status: result.ok ? StepRunStatus.COMPLETED : StepRunStatus.FAILED,
+        input: result.conversationId ? { conversationId: result.conversationId } : {},
+        ...(result.ok
+          ? { output: { messageId: result.messageId, status: 'QUEUED' } }
+          : { error: result.reason }),
+        idempotencyKey,
+        attempt,
+        maxAttempts: policies.retry.maxAttempts,
+        startedAt,
+        completedAt,
+        durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+      },
+    });
+    if (!result.ok) {
+      return this.handleStepFailure(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        stepIndex,
+        result.reason,
+        policies,
+        attempt,
+      );
+    }
+    return this.executeFrom(tx, run, tenantId, workflow, steps, stepIndex + 1, policies, 1);
   }
 
   private async executeCondition(
@@ -288,6 +468,8 @@ export class WorkflowRunExecutor {
     steps: readonly WorkflowStepDefinition[],
     stepIndex: number,
     step: WorkflowStepDefinition,
+    policies: RuntimeWorkflowPolicy,
+    attempt: number,
   ): Promise<WorkflowExecutionResult> {
     const idempotencyKey = `run-${run.id}-step-${step.id}`;
     const startedAt = new Date();
@@ -304,8 +486,20 @@ export class WorkflowRunExecutor {
         idempotencyKey,
         startedAt,
         'invalid_condition_configuration',
+        attempt,
+        policies.retry.maxAttempts,
       );
-      return this.failRun(tx, run.id, tenantId, 'invalid_condition_configuration', step.id);
+      return this.handleStepFailure(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        stepIndex,
+        'invalid_condition_configuration',
+        policies,
+        attempt,
+      );
     }
 
     let result: boolean;
@@ -334,8 +528,20 @@ export class WorkflowRunExecutor {
         idempotencyKey,
         startedAt,
         reason,
+        attempt,
+        policies.retry.maxAttempts,
       );
-      return this.failRun(tx, run.id, tenantId, reason, step.id);
+      return this.handleStepFailure(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        stepIndex,
+        reason,
+        policies,
+        attempt,
+      );
     }
 
     const selectedBranch = result ? 'onTrue' : 'onFalse';
@@ -357,6 +563,8 @@ export class WorkflowRunExecutor {
           nextStepId: nextStepId ?? null,
         } as Prisma.InputJsonValue,
         idempotencyKey,
+        attempt,
+        maxAttempts: policies.retry.maxAttempts,
         startedAt,
         completedAt,
         durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
@@ -372,7 +580,17 @@ export class WorkflowRunExecutor {
     const nextIndex = nextStepId ? steps.findIndex((candidate) => candidate.id === nextStepId) : -1;
     const skipUntil = nextStepId ? nextIndex : steps.length;
     if (skipUntil < 0) {
-      return this.failRun(tx, run.id, tenantId, 'invalid_condition_branch', step.id);
+      return this.handleStepFailure(
+        tx,
+        run,
+        tenantId,
+        workflow,
+        steps,
+        stepIndex,
+        'invalid_condition_branch',
+        policies,
+        attempt,
+      );
     }
     if (skipUntil > stepIndex + 1) {
       await tx.workflowStepRun.createMany({
@@ -404,7 +622,7 @@ export class WorkflowRunExecutor {
       await this.audit(tx, tenantId, run.id, 'workflow.run.completed');
       return { result: 'completed', runId: run.id };
     }
-    return this.executeFrom(tx, run, tenantId, workflow, steps, nextIndex);
+    return this.executeFrom(tx, run, tenantId, workflow, steps, nextIndex, policies, 1);
   }
 
   private async persistConditionFailure(
@@ -416,6 +634,8 @@ export class WorkflowRunExecutor {
     idempotencyKey: string,
     startedAt: Date,
     reason: string,
+    attempt: number,
+    maxAttempts: number,
   ): Promise<void> {
     const completedAt = new Date();
     await tx.workflowStepRun.create({
@@ -428,6 +648,8 @@ export class WorkflowRunExecutor {
         status: StepRunStatus.FAILED,
         input: step.config as Prisma.InputJsonValue,
         idempotencyKey,
+        attempt,
+        maxAttempts,
         error: reason,
         startedAt,
         completedAt,
@@ -461,12 +683,121 @@ export class WorkflowRunExecutor {
     });
   }
 
+  private async handleStepFailure(
+    tx: TenantScopedClient,
+    run: WorkflowRun,
+    tenantId: string,
+    workflow: WorkflowContextMetadata,
+    steps: readonly WorkflowStepDefinition[],
+    stepIndex: number,
+    reason: string,
+    policies: RuntimeWorkflowPolicy,
+    attempt: number,
+  ): Promise<WorkflowExecutionResult> {
+    const step = steps[stepIndex];
+    if (!step) return this.failRun(tx, run.id, tenantId, 'invalid_failure_step');
+
+    if (
+      policies.failure.action === 'retry' &&
+      attempt < policies.retry.maxAttempts &&
+      isWorkflowErrorRetryable(reason, policies.retry)
+    ) {
+      const delayMs = workflowRetryDelayMs(attempt, policies.retry);
+      const [scheduled] = await tx.$queryRaw<Array<{ scheduled_for: Date }>>`
+        SELECT clock_timestamp() + (${delayMs}::double precision * interval '1 millisecond') AS scheduled_for
+      `;
+      if (!scheduled) throw new Error('Database did not return a workflow retry time.');
+
+      await tx.workflowStepRun.updateMany({
+        where: {
+          tenantId,
+          workflowRunId: run.id,
+          stepId: step.id,
+          idempotencyKey: `run-${run.id}-step-${step.id}`,
+        },
+        data: {
+          status: StepRunStatus.SCHEDULED,
+          attempt,
+          maxAttempts: policies.retry.maxAttempts,
+          error: reason,
+          scheduledFor: scheduled.scheduled_for,
+        },
+      });
+      await tx.workflowRun.update({
+        where: { id: run.id, tenantId },
+        data: {
+          status: WorkflowRunStatus.WAITING,
+          currentStepId: step.id,
+          attempt: attempt + 1,
+          scheduledFor: scheduled.scheduled_for,
+          error: null,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: 'SYSTEM',
+          action: 'workflow.step.retry_scheduled',
+          resourceType: 'workflow_run',
+          resourceId: run.id,
+          correlationId: run.correlationId,
+          metadata: {
+            stepId: step.id,
+            error: reason,
+            attempt,
+            nextAttempt: attempt + 1,
+            maxAttempts: policies.retry.maxAttempts,
+            retryAt: scheduled.scheduled_for.toISOString(),
+          },
+        },
+      });
+      return { result: 'waiting', runId: run.id };
+    }
+
+    if (policies.failure.action === 'skip') {
+      await tx.workflowStepRun.updateMany({
+        where: {
+          tenantId,
+          workflowRunId: run.id,
+          stepId: step.id,
+          idempotencyKey: `run-${run.id}-step-${step.id}`,
+        },
+        data: { status: StepRunStatus.FAILED, error: reason, scheduledFor: null },
+      });
+      await tx.workflowRun.update({
+        where: { id: run.id, tenantId },
+        data: {
+          status: WorkflowRunStatus.RUNNING,
+          currentStepId: step.id,
+          scheduledFor: null,
+          attempt,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: 'SYSTEM',
+          action: 'workflow.step.failure_skipped',
+          resourceType: 'workflow_run',
+          resourceId: run.id,
+          correlationId: run.correlationId,
+          metadata: { stepId: step.id, error: reason, attempt },
+        },
+      });
+      return this.executeFrom(tx, run, tenantId, workflow, steps, stepIndex + 1, policies, 1);
+    }
+
+    const terminalAction = policies.failure.action === 'retry' ? 'stop' : policies.failure.action;
+    return this.failRun(tx, run.id, tenantId, reason, step.id, terminalAction);
+  }
+
   private async failRun(
     tx: TenantScopedClient,
     runId: string,
     tenantId: string,
     reason: string,
     currentStepId?: string,
+    failureAction: WorkflowFailurePolicy['action'] = 'stop',
   ): Promise<WorkflowExecutionResult> {
     const now = new Date();
     await tx.workflowRun.updateMany({
@@ -480,6 +811,21 @@ export class WorkflowRunExecutor {
       },
     });
     await this.audit(tx, tenantId, runId, 'workflow.run.failed');
+    if (failureAction === 'escalate' || failureAction === 'human_handoff') {
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: 'SYSTEM',
+          action:
+            failureAction === 'escalate'
+              ? 'workflow.run.escalation_requested'
+              : 'workflow.run.handoff_requested',
+          resourceType: 'workflow_run',
+          resourceId: runId,
+          metadata: { reason, currentStepId: currentStepId ?? null },
+        },
+      });
+    }
     return { result: 'failed', runId };
   }
 

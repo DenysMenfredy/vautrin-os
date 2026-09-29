@@ -44,6 +44,12 @@ export type WorkflowRunJob = TenantQueueJob &
   (
     | { readonly runId: string; readonly action: 'start' }
     | { readonly runId: string; readonly action: 'wake'; readonly stepId: string }
+    | {
+        readonly runId: string;
+        readonly action: 'retry';
+        readonly stepId: string;
+        readonly attempt: number;
+      }
   );
 
 export function sendMessageJobId(messageId: string): string {
@@ -57,6 +63,13 @@ export function workflowRunJobId(job: WorkflowRunJob): string {
     if (!isStepId(job.stepId)) throw new Error('stepId is invalid.');
     return `workflow-${job.runId}-wake-${job.stepId}`;
   }
+  if (job.action === 'retry') {
+    if (!isStepId(job.stepId)) throw new Error('stepId is invalid.');
+    if (!Number.isSafeInteger(job.attempt) || job.attempt < 2 || job.attempt > 10) {
+      throw new Error('attempt must be an integer from 2 to 10.');
+    }
+    return `workflow-${job.runId}-retry-${job.stepId}-${job.attempt}`;
+  }
   if (job.action !== 'start') throw new Error('workflow action is invalid.');
   return `workflow-${job.runId}-start`;
 }
@@ -67,6 +80,15 @@ export function assertWorkflowRunJob(value: unknown): asserts value is WorkflowR
   }
   if (value.action === 'wake') {
     if (!isStepId(value.stepId)) throw new Error('A workflow wake job requires a valid stepId.');
+  } else if (value.action === 'retry') {
+    if (!isStepId(value.stepId)) throw new Error('A workflow retry job requires a valid stepId.');
+    if (
+      !Number.isSafeInteger(value.attempt) ||
+      Number(value.attempt) < 2 ||
+      Number(value.attempt) > 10
+    ) {
+      throw new Error('A workflow retry job requires an attempt from 2 to 10.');
+    }
   } else if (value.action !== 'start' || value.stepId !== undefined) {
     throw new Error('Workflow run action is invalid.');
   }

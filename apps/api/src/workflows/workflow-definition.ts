@@ -1,5 +1,12 @@
 import { BadRequestException } from '@nestjs/common';
-import { parseWorkflowDefinition, type WorkflowDefinition } from '@vautrin/contracts';
+import {
+  parseWorkflowDefinition,
+  parseWorkflowFailurePolicy,
+  parseWorkflowRetryPolicy,
+  type WorkflowDefinition,
+  type WorkflowFailurePolicy,
+  type WorkflowRetryPolicy,
+} from '@vautrin/contracts';
 
 /** Validate and normalize the documented workflow definition envelope. */
 export function validateWorkflowDefinition(value: unknown): WorkflowDefinition {
@@ -27,6 +34,26 @@ export function validateJsonObject(
 ): Readonly<Record<string, unknown>> {
   if (!isRecord(value)) throw new BadRequestException(`${field} must be an object.`);
   return value;
+}
+
+export function validateWorkflowRetryPolicy(value: unknown): WorkflowRetryPolicy {
+  try {
+    return parseWorkflowRetryPolicy(value);
+  } catch (error) {
+    throw new BadRequestException(
+      error instanceof Error ? error.message : 'retryPolicy is invalid.',
+    );
+  }
+}
+
+export function validateWorkflowFailurePolicy(value: unknown): WorkflowFailurePolicy {
+  try {
+    return parseWorkflowFailurePolicy(value);
+  } catch (error) {
+    throw new BadRequestException(
+      error instanceof Error ? error.message : 'failurePolicy is invalid.',
+    );
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

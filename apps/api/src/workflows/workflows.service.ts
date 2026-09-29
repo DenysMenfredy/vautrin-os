@@ -24,8 +24,9 @@ import { buildPage, cursorFilter, DEFAULT_PAGE_SIZE, decodeCursor } from '../com
 import { DatabaseService } from '../database/database.service.js';
 import {
   validateConditionList,
-  validateJsonObject,
   validateWorkflowDefinition,
+  validateWorkflowFailurePolicy,
+  validateWorkflowRetryPolicy,
 } from './workflow-definition.js';
 
 const WORKFLOW_KEY = /^[a-z0-9][a-z0-9_-]{0,79}$/;
@@ -67,8 +68,8 @@ export class WorkflowsService {
     assertTrigger(input.trigger);
     const definition = validateWorkflowDefinition(input.definition);
     const conditions = validateConditionList(input.conditions ?? []);
-    const retryPolicy = validateJsonObject(input.retryPolicy ?? {}, 'retryPolicy');
-    const failurePolicy = validateJsonObject(input.failurePolicy ?? {}, 'failurePolicy');
+    const retryPolicy = validateWorkflowRetryPolicy(input.retryPolicy ?? {});
+    const failurePolicy = validateWorkflowFailurePolicy(input.failurePolicy ?? {});
 
     try {
       return await this.database.withTenant(tenantId, async (tx) => {
@@ -111,13 +112,11 @@ export class WorkflowsService {
     const conditions =
       input.conditions === undefined ? undefined : validateConditionList(input.conditions);
     const retryPolicy =
-      input.retryPolicy === undefined
-        ? undefined
-        : validateJsonObject(input.retryPolicy, 'retryPolicy');
+      input.retryPolicy === undefined ? undefined : validateWorkflowRetryPolicy(input.retryPolicy);
     const failurePolicy =
       input.failurePolicy === undefined
         ? undefined
-        : validateJsonObject(input.failurePolicy, 'failurePolicy');
+        : validateWorkflowFailurePolicy(input.failurePolicy);
 
     return this.database.withTenant(tenantId, async (tx) => {
       const changed = await tx.workflow.updateMany({
@@ -195,6 +194,8 @@ export class WorkflowsService {
       if (status === 'ACTIVE') {
         try {
           validateWorkflowDefinitionForActivation(current.definition);
+          validateWorkflowRetryPolicy(current.retryPolicy);
+          validateWorkflowFailurePolicy(current.failurePolicy);
         } catch (error) {
           throw new BadRequestException(
             `Workflow definition cannot be activated: ${error instanceof Error ? error.message : 'invalid condition configuration.'}`,

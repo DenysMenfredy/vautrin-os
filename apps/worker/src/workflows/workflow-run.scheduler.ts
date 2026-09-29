@@ -1,5 +1,6 @@
 import { getQueueToken } from '@nestjs/bullmq';
 import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
+import { parseWorkflowFailurePolicy, parseWorkflowRetryPolicy } from '@vautrin/contracts';
 import {
   Prisma,
   StepRunStatus,
@@ -28,6 +29,10 @@ interface PendingWorkflowRun {
   readonly scheduled_for: Date | null;
   readonly delay_ms: number;
   readonly correlation_id: string | null;
+  readonly workflow_step_type: string | null;
+  readonly step_attempt: number | null;
+  readonly retry_policy: unknown;
+  readonly failure_policy: unknown;
 }
 
 export interface WorkflowRunDispatchMetrics {
@@ -91,22 +96,39 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
           async (tx) => {
             const rows = await tx.$queryRaw<PendingWorkflowRun[]>`
               SELECT
-                id,
-                status,
-                current_step_id,
-                scheduled_for,
-                correlation_id,
+                r.id,
+                r.status,
+                r.current_step_id,
+                r.scheduled_for,
+                r.correlation_id,
+                pending_step.step_type AS workflow_step_type,
+                pending_step.attempt AS step_attempt,
+                w.retry_policy,
+                w.failure_policy,
                 CASE
-                  WHEN status = 'WAITING' AND scheduled_for IS NOT NULL THEN
-                    GREATEST(0, CEIL(EXTRACT(EPOCH FROM (scheduled_for - clock_timestamp())) * 1000))::double precision
+                  WHEN r.status = 'WAITING' AND r.scheduled_for IS NOT NULL THEN
+                    GREATEST(0, CEIL(EXTRACT(EPOCH FROM (r.scheduled_for - clock_timestamp())) * 1000))::double precision
                   ELSE 0::double precision
                 END AS delay_ms
-              FROM public.workflow_runs
-              WHERE tenant_id = ${candidate.tenant_id}::uuid
-                AND status IN ('PENDING', 'WAITING')
-              ORDER BY COALESCE(scheduled_for, created_at), id
+              FROM public.workflow_runs r
+              JOIN public.workflows w
+                ON w.tenant_id = r.tenant_id
+               AND w.id = r.workflow_id
+               AND w.version = r.workflow_version
+              LEFT JOIN LATERAL (
+                SELECT step_type, attempt
+                FROM public.workflow_step_runs
+                WHERE tenant_id = r.tenant_id
+                  AND workflow_run_id = r.id
+                  AND step_id = r.current_step_id
+                  AND status = 'SCHEDULED'
+                LIMIT 1
+              ) pending_step ON true
+              WHERE r.tenant_id = ${candidate.tenant_id}::uuid
+                AND r.status IN ('PENDING', 'WAITING')
+              ORDER BY COALESCE(r.scheduled_for, r.created_at), r.id
               LIMIT ${RUN_BATCH_SIZE}
-              FOR UPDATE SKIP LOCKED
+              FOR UPDATE OF r SKIP LOCKED
             `;
             let enqueued = 0;
             let existing = 0;
@@ -143,10 +165,10 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
                 await queuedJob.remove();
               }
 
-              const delay = job.action === 'wake' ? Math.max(0, row.delay_ms) : 0;
+              const retryDelay = job.action === 'start' ? 0 : Math.max(0, row.delay_ms);
               await this.queue.add(WORKFLOW_RUN_JOB, job, {
                 jobId,
-                ...(delay > 0 ? { delay } : {}),
+                ...(retryDelay > 0 ? { delay: retryDelay } : {}),
               });
               enqueued++;
             }
@@ -180,13 +202,41 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
       };
     }
     if (row.status === WorkflowRunStatus.WAITING && row.current_step_id && row.scheduled_for) {
-      return {
-        tenantId,
-        runId: row.id,
-        action: 'wake',
-        stepId: row.current_step_id,
-        ...(row.correlation_id ? { correlationId: row.correlation_id } : {}),
-      };
+      if (row.workflow_step_type === 'WAIT') {
+        return {
+          tenantId,
+          runId: row.id,
+          action: 'wake',
+          stepId: row.current_step_id,
+          ...(row.correlation_id ? { correlationId: row.correlation_id } : {}),
+        };
+      }
+      if (
+        row.workflow_step_type &&
+        row.workflow_step_type !== 'WAIT' &&
+        row.step_attempt !== null &&
+        row.step_attempt < 10
+      ) {
+        let retryPolicy: ReturnType<typeof parseWorkflowRetryPolicy>;
+        let failurePolicy: ReturnType<typeof parseWorkflowFailurePolicy>;
+        try {
+          retryPolicy = parseWorkflowRetryPolicy(row.retry_policy);
+          failurePolicy = parseWorkflowFailurePolicy(row.failure_policy);
+        } catch {
+          return null;
+        }
+        if (failurePolicy.action !== 'retry' || row.step_attempt >= retryPolicy.maxAttempts) {
+          return null;
+        }
+        return {
+          tenantId,
+          runId: row.id,
+          action: 'retry',
+          stepId: row.current_step_id,
+          attempt: row.step_attempt + 1,
+          ...(row.correlation_id ? { correlationId: row.correlation_id } : {}),
+        };
+      }
     }
     return null;
   }
@@ -211,6 +261,22 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
     reason: string,
   ): Promise<void> {
     const now = new Date();
+    let failureAction: string | undefined;
+    const workflow = await tx.workflowRun.findFirst({
+      where: { id: row.id, tenantId },
+      select: { workflowId: true, workflowVersion: true },
+    });
+    if (workflow) {
+      const config = await tx.workflow.findFirst({
+        where: { id: workflow.workflowId, tenantId, version: workflow.workflowVersion },
+        select: { failurePolicy: true },
+      });
+      try {
+        failureAction = parseWorkflowFailurePolicy(config?.failurePolicy).action;
+      } catch {
+        failureAction = 'stop';
+      }
+    }
     await tx.workflowRun.updateMany({
       where: { id: row.id, tenantId, status: row.status },
       data: { status: WorkflowRunStatus.FAILED, failedAt: now, scheduledFor: null, error: reason },
@@ -233,8 +299,29 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
         action: 'workflow.run.failed',
         resourceType: 'workflow_run',
         resourceId: row.id,
+        metadata: {
+          reason,
+          ...(failureAction ? { failureAction } : {}),
+          ...(failureAction === 'escalate' ? { escalationRequested: true } : {}),
+          ...(failureAction === 'human_handoff' ? { handoffRequested: true } : {}),
+        },
       },
     });
+    if (failureAction === 'escalate' || failureAction === 'human_handoff') {
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: 'SYSTEM',
+          action:
+            failureAction === 'escalate'
+              ? 'workflow.run.escalation_requested'
+              : 'workflow.run.handoff_requested',
+          resourceType: 'workflow_run',
+          resourceId: row.id,
+          metadata: { reason, currentStepId: row.current_step_id },
+        },
+      });
+    }
   }
 
   private schedule(delay: number): void {

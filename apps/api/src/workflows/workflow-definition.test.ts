@@ -1,7 +1,15 @@
-import { validateWorkflowDefinitionForActivation } from '@vautrin/contracts';
+import {
+  isWorkflowErrorRetryable,
+  validateWorkflowDefinitionForActivation,
+  workflowRetryDelayMs,
+} from '@vautrin/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { validateWorkflowDefinition } from './workflow-definition.js';
+import {
+  validateWorkflowDefinition,
+  validateWorkflowFailurePolicy,
+  validateWorkflowRetryPolicy,
+} from './workflow-definition.js';
 
 describe('validateWorkflowDefinition', () => {
   it('accepts ordered, uniquely identified supported steps', () => {
@@ -103,5 +111,66 @@ describe('validateWorkflowDefinitionForActivation', () => {
         }),
       ).toThrow();
     }
+  });
+});
+
+describe('workflow retry and failure policies', () => {
+  it('normalizes conservative bounded defaults', () => {
+    expect(validateWorkflowRetryPolicy({})).toEqual({
+      maxAttempts: 3,
+      initialDelayMs: 5_000,
+      maxDelayMs: 300_000,
+      retryableErrors: [],
+      terminalErrors: [],
+    });
+    expect(validateWorkflowFailurePolicy({})).toEqual({ action: 'stop' });
+  });
+
+  it('accepts explicit exponential retry and escalation policies', () => {
+    expect(
+      validateWorkflowRetryPolicy({
+        maxAttempts: 5,
+        initialDelayMs: 250,
+        maxDelayMs: 10_000,
+        retryableErrors: ['provider.rate_limited', '*'],
+        terminalErrors: ['provider.invalid_request'],
+      }),
+    ).toMatchObject({ maxAttempts: 5, retryableErrors: ['provider.rate_limited', '*'] });
+    expect(validateWorkflowFailurePolicy({ action: 'human_handoff' })).toEqual({
+      action: 'human_handoff',
+    });
+  });
+
+  it('applies bounded exponential backoff with terminal errors taking precedence', () => {
+    const policy = validateWorkflowRetryPolicy({
+      maxAttempts: 4,
+      initialDelayMs: 500,
+      maxDelayMs: 1_500,
+      retryableErrors: ['*'],
+      terminalErrors: ['configuration.invalid'],
+    });
+    expect(workflowRetryDelayMs(1, policy)).toBe(500);
+    expect(workflowRetryDelayMs(2, policy)).toBe(1_000);
+    expect(workflowRetryDelayMs(4, policy)).toBe(1_500);
+    expect(isWorkflowErrorRetryable('provider.timeout', policy)).toBe(true);
+    expect(isWorkflowErrorRetryable('configuration.invalid', policy)).toBe(false);
+  });
+
+  it.each([
+    { maxAttempts: 0 },
+    { maxAttempts: 11 },
+    { initialDelayMs: 99 },
+    { initialDelayMs: 10_000, maxDelayMs: 9_999 },
+    { retryableErrors: ['Not A Code'] },
+    { retryableErrors: ['provider.failed', 'provider.failed'] },
+    { terminalErrors: ['*'] },
+    { other: true },
+  ])('rejects invalid retry policy %#', (policy) => {
+    expect(() => validateWorkflowRetryPolicy(policy)).toThrow();
+  });
+
+  it('rejects invalid failure actions and extra fields', () => {
+    expect(() => validateWorkflowFailurePolicy({ action: 'continue' })).toThrow();
+    expect(() => validateWorkflowFailurePolicy({ action: 'skip', extra: true })).toThrow();
   });
 });

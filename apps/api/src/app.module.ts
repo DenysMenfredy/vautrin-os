@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-
+import { AgentsModule } from './agents/agents.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { AuthModule } from './auth/auth.module.js';
 import { JwtAuthGuard } from './auth/jwt-auth.guard.js';
@@ -35,6 +35,7 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
     DatabaseModule,
     AuditModule,
     AuthModule,
+    AgentsModule,
     TenantModule,
     BusinessModule,
     ContactsModule,

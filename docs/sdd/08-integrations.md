@@ -101,8 +101,10 @@ For v0.3 the selected first providers are Twilio SMS and Google Calendar.
 The Twilio inbound SMS path resolves only a provisioned integration, validates
 the [Twilio request signature](https://www.twilio.com/docs/usage/webhooks/webhooks-security)
 against its exact configured public URL and full form payload, and writes the
-message and internal event under tenant RLS. Its SDK send capability is not
-yet wired to an outbound workflow. The Google adapter uses Calendar v3
+message and internal event under tenant RLS. The v0.3 workflow `send_message`
+step queues a tenant-scoped outbound message through the durable outbox; the
+worker rechecks SMS suppression and uses the Twilio SDK adapter for delivery.
+The Google adapter uses Calendar v3
 [free/busy](https://developers.google.com/workspace/calendar/api/v3/reference/freebusy/query),
 [event insert](https://developers.google.com/workspace/calendar/api/v3/reference/events/insert),
 and [event delete](https://developers.google.com/workspace/calendar/api/v3/reference/events/delete).
