@@ -2,9 +2,11 @@ name: Local API
 variables:
   - name: baseUrl
     value: http://localhost:3000/api
-  - name: email
-    secret: true
-  - name: password
-    secret: true
   - name: tenantId
-    value: ''
+    value: ""
+  - secret: true
+    name: email
+    description: ""
+  - secret: true
+    name: password
+    description: ""
