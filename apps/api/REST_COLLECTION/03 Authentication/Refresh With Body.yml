@@ -1,7 +1,7 @@
 info:
   name: Refresh — body token
   type: http
-  seq: 4
+  seq: 5
   tags:
     - auth
     - tokens

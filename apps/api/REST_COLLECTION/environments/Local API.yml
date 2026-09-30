@@ -10,3 +10,9 @@ variables:
   - secret: true
     name: password
     description: ""
+  - secret: true
+    name: invitationToken
+    description: One-time invitation token; clear it after acceptance.
+  - secret: true
+    name: invitationPassword
+    description: Optional; defaults to password for invitation acceptance.

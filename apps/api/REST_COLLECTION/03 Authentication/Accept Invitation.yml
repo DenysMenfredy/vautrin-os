@@ -1,7 +1,7 @@
 info:
-  name: Accept Invitation
+  name: Register (Accept Invitation)
   type: http
-  seq: 8
+  seq: 1
   tags:
     - auth
     - tenant
@@ -19,10 +19,13 @@ runtime:
     - type: before-request
       code: |-
         const token = bru.getVar('invitationToken') || bru.getEnvVar('invitationToken');
-        const password = bru.getEnvVar('invitationPassword');
-        if (!token || !password) {
+        const password = bru.getEnvVar('invitationPassword') || bru.getEnvVar('password');
+        if (!token) {
           bru.runner.skipRequest();
         } else {
+          if (!password) {
+            throw new Error('Set password or invitationPassword in the selected Bruno environment before accepting an invitation.');
+          }
           req.setBody({ token, password });
         }
     - type: tests

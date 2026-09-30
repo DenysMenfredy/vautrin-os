@@ -23,6 +23,11 @@ http:
       }
 runtime:
   scripts:
+    - type: before-request
+      code: |-
+        if (!bru.getVar('accessToken')) {
+          throw new Error('Run Authentication > Login first to obtain an access token.');
+        }
     - type: after-response
       code: |-
         if (res.status === 201) bru.setVar('contactId', res.body.id);

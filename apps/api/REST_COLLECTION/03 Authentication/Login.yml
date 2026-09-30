@@ -1,19 +1,21 @@
 info:
   name: Login
   type: http
-  seq: 1
+  seq: 2
   tags:
     - auth
     - smoke
+
 http:
   method: POST
-  url: '{{baseUrl}}/auth/login'
+  url: "{{baseUrl}}/auth/login"
   headers:
     - name: Content-Type
       value: application/json
   body:
     type: json
-    data: '{}'
+    data: ""
+
 runtime:
   scripts:
     - type: before-request
@@ -50,3 +52,10 @@ runtime:
           expect(res.body.user.id).to.be.a('string');
           expect(res.body.memberships).to.be.an('array');
         });
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: true
