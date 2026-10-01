@@ -1,6 +1,6 @@
 # @vautrin/web
 
-The Vautrin OS dashboard — Nuxt 4 + Vue 3 + TypeScript (VOS-003).
+The Vautrin OS operations workspace — Nuxt 4 + Vue 3 + TypeScript.
 
 ## Run
 
@@ -19,10 +19,13 @@ Nuxt 4's layout — application code lives in `app/`, server code at the root:
 
 ```text
 app/
-  app.vue                 root shell
-  pages/index.vue         platform status
-  composables/            useApiBase, useApiHealth
-  assets/css/main.css     baseline styling only
+  app.vue                 authenticated shell and tenant switcher
+  pages/                 overview, leads, inbox, appointments, workflows,
+                         AI Workforce, settings and authentication
+  components/            shared UI primitives
+  composables/            same-origin API and in-memory access session
+  assets/css/main.css     design-system tokens and responsive components
+public/fonts/            local Geist and Geist Mono (SIL OFL 1.1)
 server/
   api/[...path].ts        same-origin proxy to apps/api
 nuxt.config.ts
@@ -91,9 +94,17 @@ Two gotchas worth knowing before adding tests:
 - `useFetch` caches by `key`, so a second mount reuses the first response
   unless you `clearNuxtData(key)` first.
 
-## Not here yet
+## Current UI scope
 
-The web app still has only the status page: it has no login/session UI, layouts,
-design system, CRM views (VOS-055), or inbox (VOS-065). API authentication is
-implemented (VOS-030). The page exists to prove the web → API → database path
-works end to end.
+The workspace follows `Vautrin_OS_Design_System_v1.0.pdf` and reads the active
+tenant from `/auth/me`. The access token stays in memory. The browser relies on
+the HttpOnly refresh cookie, and only the API may approve tenant switching.
+
+The overview uses `/crm/dashboard` for stage counts. Leads, conversations,
+appointments, workflows, agents and business settings use their existing API
+endpoints. Workflow drafts have a linear editor for the worker's implemented
+wait, condition, literal SMS and end actions. Agent drafts can be versioned,
+but the worker does not execute agents yet. The API does not yet expose
+estimates, lead next actions, joined assignee names, workflow run statistics
+or AI message authorship. These are
+shown as unavailable or omitted rather than represented by invented data.

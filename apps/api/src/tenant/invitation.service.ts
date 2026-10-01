@@ -29,18 +29,18 @@ export class InvitationService {
     const email = normalizeEmail(input.ownerEmail);
     const secret = newInvitationSecret();
 
-    try {
-      // A new tenant can satisfy tenants' FORCE RLS policy by setting its
-      // generated id as the transaction-local context before the INSERT.
-      // nosemgrep: semgrep.vautrin-unscoped-database-access
-      return await this.database.unscoped.$transaction(async (tx) => {
-        const [generated] = await tx.$queryRaw<Array<{ id: string }>>`
-          SELECT uuidv7()::text AS id
-        `;
-        if (!generated) throw new Error('Failed to generate tenant id.');
-        const tenantId = generated.id;
-        await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
+    // A new tenant can satisfy tenants' FORCE RLS policy by setting its
+    // generated id as the transaction-local context before the INSERT.
+    // nosemgrep: semgrep.vautrin-unscoped-database-access
+    return this.database.unscoped.$transaction(async (tx) => {
+      const [generated] = await tx.$queryRaw<Array<{ id: string }>>`
+        SELECT uuidv7()::text AS id
+      `;
+      if (!generated) throw new Error('Failed to generate tenant id.');
+      const tenantId = generated.id;
+      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
 
+      try {
         await tx.tenant.create({
           data: {
             id: tenantId,
@@ -49,33 +49,37 @@ export class InvitationService {
             vertical: input.vertical ?? 'generic-local-business',
           },
         });
-        const invitation = await tx.tenantInvitation.create({
-          data: {
-            tenantId,
-            email,
-            role: 'OWNER',
-            tokenHash: secret.hash,
-            expiresAt: expiry(),
-          },
-        });
-        await tx.auditLog.create({
-          data: {
-            tenantId,
-            actorType: 'SYSTEM',
-            action: 'tenant.invitation.issued',
-            resourceType: 'tenant_invitation',
-            resourceId: invitation.id,
-            metadata: { bootstrap: true, role: 'OWNER' },
-          },
-        });
-        return { tenantId, ...issuedInvitation(invitation, secret.token) };
-      });
-    } catch (error) {
-      if (isUniqueViolation(error, 'slug')) {
-        throw new ConflictException('Tenant slug is already taken.');
+      } catch (error) {
+        // This insert has only one caller-controlled unique field (slug).
+        // Some Prisma adapters omit meta.target and report "(not available)",
+        // so classify P2002 at this exact operation instead of relying on it.
+        if (isUniqueViolation(error)) {
+          throw new ConflictException(`Tenant slug "${input.slug}" is already taken.`);
+        }
+        throw error;
       }
-      throw error;
-    }
+
+      const invitation = await tx.tenantInvitation.create({
+        data: {
+          tenantId,
+          email,
+          role: 'OWNER',
+          tokenHash: secret.hash,
+          expiresAt: expiry(),
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          tenantId,
+          actorType: 'SYSTEM',
+          action: 'tenant.invitation.issued',
+          resourceType: 'tenant_invitation',
+          resourceId: invitation.id,
+          metadata: { bootstrap: true, role: 'OWNER' },
+        },
+      });
+      return { tenantId, ...issuedInvitation(invitation, secret.token) };
+    });
   }
 
   /** Recovery for an unclaimed tenant; callable from the operator command only. */
@@ -325,11 +329,8 @@ function issuedInvitation(
   return { invitationId: invitation.id, token, expiresAt: invitation.expiresAt.toISOString() };
 }
 
-function isUniqueViolation(error: unknown, field: string): boolean {
+function isUniqueViolation(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
   const candidate = error as { code?: unknown; meta?: { target?: unknown } };
-  if (candidate.code !== 'P2002') return false;
-  const target = candidate.meta?.target;
-  if (Array.isArray(target)) return target.includes(field);
-  return typeof target === 'string' && target.includes(field);
+  return candidate.code === 'P2002';
 }

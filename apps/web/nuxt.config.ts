@@ -58,6 +58,7 @@ export default defineNuxtConfig({
             "default-src 'self'",
             "script-src 'self' 'unsafe-inline'",
             "style-src 'self' 'unsafe-inline'",
+            "font-src 'self'",
             "img-src 'self' data:",
             "connect-src 'self'",
             "frame-ancestors 'none'",

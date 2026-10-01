@@ -1,0 +1,173 @@
+{
+  "version": 1,
+  "profile": {
+    "displayName": "Sample Home Remodeling Co",
+    "legalName": "Sample Home Services LLC",
+    "phone": "+15125550100",
+    "email": "hello@sample-home.example.test",
+    "website": "https://sample-home.example.test",
+    "description": "Fictional remodeling business profile for local development and UI previews.",
+    "timezone": "America/Chicago",
+    "locale": "en-US",
+    "currency": "USD"
+  },
+  "location": {
+    "name": "Sample Austin Office",
+    "addressLine1": "1234 Sample Contractor Way",
+    "city": "Austin",
+    "region": "TX",
+    "postalCode": "78701",
+    "country": "US",
+    "timezone": "America/Chicago",
+    "isPrimary": false,
+    "serviceRadiusMiles": 25
+  },
+  "services": [
+    {
+      "key": "sample-kitchen-remodel",
+      "name": "Kitchen remodeling (sample)",
+      "description": "Fictional sample service used to preview the remodeling workflow.",
+      "active": true,
+      "metadata": { "sampleData": true }
+    },
+    {
+      "key": "sample-bathroom-remodel",
+      "name": "Bathroom remodeling (sample)",
+      "description": "Fictional sample service used to preview the remodeling workflow.",
+      "active": true,
+      "metadata": { "sampleData": true }
+    },
+    {
+      "key": "sample-deck-repair",
+      "name": "Deck repair (sample)",
+      "description": "Fictional sample service used to preview the remodeling workflow.",
+      "active": true,
+      "metadata": { "sampleData": true }
+    }
+  ],
+  "serviceAreas": [
+    {
+      "type": "POSTAL_CODE",
+      "value": "78701",
+      "configuration": { "city": "Austin", "region": "TX", "sampleData": true },
+      "active": true
+    },
+    {
+      "type": "POSTAL_CODE",
+      "value": "78702",
+      "configuration": { "city": "Austin", "region": "TX", "sampleData": true },
+      "active": true
+    }
+  ],
+  "leadSources": [
+    { "key": "sample-website", "label": "Sample website", "category": "digital" },
+    { "key": "sample-referral", "label": "Sample referral", "category": "referral" },
+    {
+      "key": "sample-google-business-profile",
+      "label": "Sample Google Business Profile",
+      "category": "digital"
+    }
+  ],
+  "contacts": [
+    {
+      "key": "maya-chen",
+      "firstName": "Maya",
+      "lastName": "Chen",
+      "email": "maya.chen@sample.test",
+      "phone": "+15125550101",
+      "company": "Sample household",
+      "address": {
+        "line1": "42 Sample Oak Lane",
+        "city": "Austin",
+        "region": "TX",
+        "postalCode": "78701",
+        "country": "US"
+      },
+      "tags": ["sample-data", "seed-v1"],
+      "notes": "Fictional sample contact. Do not contact; all details are reserved sample data."
+    },
+    {
+      "key": "leo-bennett",
+      "firstName": "Leo",
+      "lastName": "Bennett",
+      "email": "leo.bennett@sample.test",
+      "phone": "+15125550102",
+      "company": "Sample household",
+      "address": {
+        "line1": "18 Example Garden Court",
+        "city": "Austin",
+        "region": "TX",
+        "postalCode": "78702",
+        "country": "US"
+      },
+      "tags": ["sample-data", "seed-v1"],
+      "notes": "Fictional sample contact. Do not contact; all details are reserved sample data."
+    },
+    {
+      "key": "amara-patel",
+      "firstName": "Amara",
+      "lastName": "Patel",
+      "email": "amara.patel@sample.test",
+      "phone": "+15125550103",
+      "company": "Sample household",
+      "address": {
+        "line1": "7 Fictional Creek Drive",
+        "city": "Austin",
+        "region": "TX",
+        "postalCode": "78702",
+        "country": "US"
+      },
+      "tags": ["sample-data", "seed-v1"],
+      "notes": "Fictional sample contact. Do not contact; all details are reserved sample data."
+    }
+  ],
+  "leads": [
+    {
+      "contactKey": "maya-chen",
+      "sourceKey": "sample-website",
+      "serviceKey": "sample-kitchen-remodel",
+      "title": "Sample inquiry — kitchen remodel",
+      "description": "Fictional sample inquiry for UI development. Do not contact this record.",
+      "estimatedValue": "24500.00",
+      "status": "NEW"
+    },
+    {
+      "contactKey": "leo-bennett",
+      "sourceKey": "sample-referral",
+      "serviceKey": "sample-bathroom-remodel",
+      "title": "Sample inquiry — bathroom refresh",
+      "description": "Fictional sample inquiry for UI development. Do not contact this record.",
+      "estimatedValue": "8900.00",
+      "status": "CONTACTED"
+    },
+    {
+      "contactKey": "amara-patel",
+      "sourceKey": "sample-google-business-profile",
+      "serviceKey": "sample-deck-repair",
+      "title": "Sample inquiry — deck repair",
+      "description": "Fictional sample inquiry for UI development. Do not contact this record.",
+      "estimatedValue": "13800.00",
+      "status": "QUALIFIED"
+    }
+  ],
+  "workflow": {
+    "key": "sample-lead-review",
+    "name": "Sample lead review (draft)",
+    "description": "Inactive sample workflow with no external actions.",
+    "trigger": "lead.created",
+    "definition": {
+      "steps": [{ "id": "finish", "type": "end", "config": {} }]
+    }
+  },
+  "agent": {
+    "key": "sample-receptionist",
+    "name": "Sample receptionist (draft)",
+    "instructions": "This is an inactive sample configuration. Use only verified tenant data. Do not send messages, book appointments, or take actions; hand any real request to a human.",
+    "promptVersion": "sample-v1",
+    "allowedTools": [],
+    "modelConfiguration": {},
+    "knowledgeStrategy": {},
+    "guardrails": { "sampleDataOnly": true, "requireHumanApproval": true },
+    "handoffPolicy": {}
+  }
+}
