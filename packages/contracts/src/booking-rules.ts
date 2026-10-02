@@ -116,17 +116,21 @@ export const BUSINESS_DAYS = [
   'sunday',
 ] as const;
 
-/** Business Hours V1: local non-overnight periods, one entry per weekday. */
+const weeklyBusinessHoursSchema = z.strictObject({
+  monday: businessHoursDaySchema,
+  tuesday: businessHoursDaySchema,
+  wednesday: businessHoursDaySchema,
+  thursday: businessHoursDaySchema,
+  friday: businessHoursDaySchema,
+  saturday: businessHoursDaySchema,
+  sunday: businessHoursDaySchema,
+});
+
+/** Business Hours V1: timezone plus a local, non-overnight weekly schedule. */
 export const businessHoursSchema = z
   .strictObject({
     timezone: z.string().min(1).max(100),
-    monday: businessHoursDaySchema,
-    tuesday: businessHoursDaySchema,
-    wednesday: businessHoursDaySchema,
-    thursday: businessHoursDaySchema,
-    friday: businessHoursDaySchema,
-    saturday: businessHoursDaySchema,
-    sunday: businessHoursDaySchema,
+    weekly: weeklyBusinessHoursSchema,
   })
   .superRefine((hours, context) => {
     try {
@@ -135,17 +139,20 @@ export const businessHoursSchema = z
       context.addIssue({ code: 'custom', path: ['timezone'], message: 'Unsupported timezone.' });
     }
     for (const day of BUSINESS_DAYS) {
-      const value = hours[day];
+      const value = hours.weekly[day];
       const periods = value.periods
-        .map((period) => ({ start: timeMinutes(period.start), end: timeMinutes(period.end) }))
-        .sort((a, b) => a.start - b.start);
-      for (let index = 0; index < periods.length; index += 1) {
-        const period = periods[index];
-        const previous = periods[index - 1];
-        if (period && (period.start >= period.end || (previous && period.start < previous.end))) {
+        .map((period, index) => ({
+          index,
+          start: timeMinutes(period.start),
+          end: timeMinutes(period.end),
+        }))
+        .sort((left, right) => left.start - right.start);
+      for (const [position, period] of periods.entries()) {
+        const previous = periods[position - 1];
+        if (period.start >= period.end || (previous && period.start < previous.end)) {
           context.addIssue({
             code: 'custom',
-            path: [day, 'periods'],
+            path: ['weekly', day, 'periods', period.index],
             message: 'Periods must be non-overlapping and end on the same day.',
           });
           break;

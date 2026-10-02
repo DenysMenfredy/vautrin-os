@@ -201,8 +201,7 @@ async function main() {
     const triggersFromSampleLeads = new Set(['lead.created', 'lead.status_changed']);
     const activeTriggers = workflows
       .filter(
-        (workflow) =>
-          workflow.status === 'ACTIVE' && triggersFromSampleLeads.has(workflow.trigger),
+        (workflow) => workflow.status === 'ACTIVE' && triggersFromSampleLeads.has(workflow.trigger),
       )
       .map((workflow) => workflow.trigger);
     if (activeTriggers.length > 0) {
@@ -239,10 +238,8 @@ async function seedTenant(token, workflows) {
   for (const service of fixtures.services) {
     servicesByKey.set(
       service.key,
-      await ensureResource(
-        'service',
-        servicesByKey.get(service.key),
-        () => apiRequest('business/services', { method: 'POST', token, body: service }),
+      await ensureResource('service', servicesByKey.get(service.key), () =>
+        apiRequest('business/services', { method: 'POST', token, body: service }),
       ),
     );
   }
@@ -261,10 +258,8 @@ async function seedTenant(token, workflows) {
   for (const source of fixtures.leadSources) {
     sourcesByKey.set(
       source.key,
-      await ensureResource(
-        'lead source',
-        sourcesByKey.get(source.key),
-        () => apiRequest('lead-sources', { method: 'POST', token, body: source }),
+      await ensureResource('lead source', sourcesByKey.get(source.key), () =>
+        apiRequest('lead-sources', { method: 'POST', token, body: source }),
       ),
     );
   }
@@ -276,10 +271,8 @@ async function seedTenant(token, workflows) {
     const existing = contacts.find((item) => item.email === contact.email);
     contactsByKey.set(
       key,
-      await ensureResource(
-        'contact',
-        existing,
-        () => apiRequest('contacts', { method: 'POST', token, body: contactInput }),
+      await ensureResource('contact', existing, () =>
+        apiRequest('contacts', { method: 'POST', token, body: contactInput }),
       ),
     );
   }
@@ -364,9 +357,9 @@ function printSummary() {
       .map(([type, count]) => `${type}: ${count}`)
       .join(', ') || 'none';
 
-  console.log('Sample data was seeded through the tenant-scoped API.');
-  console.log(`Created: ${format(counters.created)}`);
-  console.log(`Reused: ${format(counters.reused)}`);
+  process.stdout.write('Sample data was seeded through the tenant-scoped API.\n');
+  process.stdout.write(`Created: ${format(counters.created)}\n`);
+  process.stdout.write(`Reused: ${format(counters.reused)}\n`);
 }
 
 let apiBaseUrl;

@@ -50,10 +50,7 @@ function fillProfile(value: BusinessProfileResponse) {
 }
 function isNotFound(cause: unknown): boolean {
   return (
-    typeof cause === 'object' &&
-    cause !== null &&
-    'statusCode' in cause &&
-    cause.statusCode === 404
+    typeof cause === 'object' && cause !== null && 'statusCode' in cause && cause.statusCode === 404
   );
 }
 function initializeMissingProfile() {

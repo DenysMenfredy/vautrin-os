@@ -65,6 +65,11 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      # The Docker/Nitro build above does not prove that the GCS artifact
+      # exists or that /api remains same-origin in the browser bundle.
+      - name: Generate and verify static frontend
+        run: pnpm --filter @vautrin/web build:static
+
   # -------------------------------------------------------------------------
   integration:
     name: Integration tests

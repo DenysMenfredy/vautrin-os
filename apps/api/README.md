@@ -228,10 +228,13 @@ credentials must be provisioned by an operator. Do not put access or refresh
 tokens in business settings.
 
 `businessHours` is read and written as part of `/business/profile`; it uses the
-existing tenant profile JSON field. V1 requires `timezone` plus Monday–Sunday
-entries with `enabled` and zero or more non-overlapping local `HH:mm` periods.
-Overnight periods and date-specific exceptions are not supported. The timezone
-here is authoritative; `bookingRules.scheduling` has no timezone. The validated
+existing tenant profile JSON field. V1 requires `{ timezone, weekly: { monday,
+..., sunday } }`. Each day has `enabled` and sorted, non-overlapping local
+`HH:mm` periods. Disabled days have none; enabled days have at least one.
+`start` must be before `end`, and `timezone` must be a valid IANA zone.
+Overnight periods and date-specific exceptions are not supported. A data
+migration nests previously stored flat weekday entries. The timezone here is
+authoritative; `bookingRules.scheduling` has no timezone. The validated
 `bookingRules` JSON lives in `/business/settings`. Its required-field paths are
 limited to `contact.name`, `contact.phone`, `contact.address`, and `lead.service`;
 they never create persistence fields. Enabled V1 rules require double-booking

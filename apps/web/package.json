@@ -6,6 +6,7 @@
   "description": "Vautrin OS dashboard \u2014 Nuxt 4 + Vue 3 (VOS-003)",
   "scripts": {
     "build": "nuxt build",
+    "build:static": "nuxt generate && node scripts/verify-static-output.mjs",
     "dev": "dotenv -e ../../.env -- nuxt dev",
     "start": "node .output/server/index.mjs",
     "postinstall": "nuxt prepare",

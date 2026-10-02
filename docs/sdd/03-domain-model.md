@@ -22,8 +22,13 @@ members with `member.manage` issue subsequent invitations.
 Business-specific operational configuration.
 The API exposes communication preferences, qualification rules, booking rules,
 and AI configuration through a `business.manage`-restricted settings resource.
-They remain flexible JSON objects until a versioned configuration schema is
-specified; the ordinary business-profile response omits AI configuration.
+Booking rules and business hours have V1 validators; other settings remain
+flexible JSON objects. The ordinary business-profile response omits AI
+configuration. `businessHours` uses `{ timezone, weekly: { monday, ...,
+sunday } }`; each day has `enabled` and zero or more non-overlapping local
+`HH:mm` periods. The enabled flag controls whether periods can be offered.
+Overnight periods and date-specific exceptions are deferred. The hours
+timezone is authoritative for booking.
 
 ### Location
 Physical/service location associated with a tenant.

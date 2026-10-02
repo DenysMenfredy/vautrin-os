@@ -5,13 +5,15 @@ const closedDay = { enabled: false, periods: [] };
 
 export const validBusinessHours: BusinessHours = {
   timezone: 'America/Belem',
-  monday: openDay,
-  tuesday: openDay,
-  wednesday: openDay,
-  thursday: openDay,
-  friday: openDay,
-  saturday: closedDay,
-  sunday: closedDay,
+  weekly: {
+    monday: openDay,
+    tuesday: openDay,
+    wednesday: openDay,
+    thursday: openDay,
+    friday: openDay,
+    saturday: closedDay,
+    sunday: closedDay,
+  },
 };
 
 export const validBookingRules: BookingRules = {

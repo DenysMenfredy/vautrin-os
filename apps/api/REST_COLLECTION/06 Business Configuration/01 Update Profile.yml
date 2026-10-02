@@ -21,7 +21,19 @@ http:
         "displayName": "Sample Remodeling Co.",
         "timezone": "America/Belem",
         "locale": "en-US",
-        "currency": "USD"
+        "currency": "USD",
+        "businessHours": {
+          "timezone": "America/Belem",
+          "weekly": {
+            "monday": { "enabled": true, "periods": [{ "start": "09:00", "end": "17:00" }] },
+            "tuesday": { "enabled": true, "periods": [{ "start": "09:00", "end": "17:00" }] },
+            "wednesday": { "enabled": true, "periods": [{ "start": "09:00", "end": "17:00" }] },
+            "thursday": { "enabled": true, "periods": [{ "start": "09:00", "end": "17:00" }] },
+            "friday": { "enabled": true, "periods": [{ "start": "09:00", "end": "17:00" }] },
+            "saturday": { "enabled": false, "periods": [] },
+            "sunday": { "enabled": false, "periods": [] }
+          }
+        }
       }
 runtime:
   scripts:

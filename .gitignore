@@ -4,6 +4,7 @@ node_modules/
 
 # Build output
 dist/
+/apps/web/dist
 packages/database/generated/
 .output/
 .nuxt/
@@ -34,4 +35,3 @@ pnpm-debug.log*
 !.vscode/extensions.json
 
 .zip
-

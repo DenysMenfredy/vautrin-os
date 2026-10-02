@@ -198,6 +198,16 @@ describe('business profile (VOS-040)', () => {
         })
       ).status,
     ).toBe(400);
+    expect(
+      (
+        await request('PATCH', '/business/profile', ownerToken, {
+          businessHours: {
+            timezone: validBusinessHours.timezone,
+            ...validBusinessHours.weekly,
+          },
+        })
+      ).status,
+    ).toBe(400);
 
     const publicProfile = await request('GET', '/business/profile', staffToken);
     expect(await publicProfile.json()).not.toHaveProperty('aiConfiguration');

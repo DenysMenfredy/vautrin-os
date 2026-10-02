@@ -29,10 +29,21 @@ outbox events establish the v0.2 events-and-queues gate. See
 [`backlog/technical-backlog.md`](backlog/technical-backlog.md) for task status
 and acceptance criteria.
 
-V0.3 work has begun with RLS-safe outbox dispatch, idempotent workflow-run
-creation, tenant-scoped conversation/message APIs, and durable workflow `wait`
-and `end` execution. Other workflow actions, messaging providers, AI, booking,
-and GCP staging are not implemented yet; the v0.3 exit criteria remain open.
+V0.3 includes RLS-safe outbox dispatch, tenant-scoped conversation/message
+APIs, durable workflow execution, booking rules and availability, and Twilio
+and Google Calendar provider integrations. The operations frontend is merged
+and has a static build target, but the receptionist agent runtime, LLM
+provider, and GCP staging remain open v0.3 release blockers.
+
+## Source-review archives
+
+Do not ZIP the working directory: local `.env` files and credentials can be
+included even though Git ignores them. For a source-only review package,
+commit the intended changes first, then run
+`git archive --format=zip --output=/tmp/vautrin-os-review.zip HEAD` and inspect
+the archive's file list before sharing it. The tracked `.env.example` contains
+placeholders; `.env` must never be included. If an archive containing a real
+`.env` has been shared, rotate the exposed credentials.
 
 ## Product principle
 

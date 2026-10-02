@@ -20,7 +20,7 @@ export class InvitationService {
   constructor(private readonly database: DatabaseService) {}
 
   /** Invoked only by the local operator command, never by an HTTP route. */
-  async bootstrapTenant(input: {
+  bootstrapTenant(input: {
     slug: string;
     name: string;
     ownerEmail: string;

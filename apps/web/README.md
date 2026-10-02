@@ -27,14 +27,16 @@ app/
   assets/css/main.css     design-system tokens and responsive components
 public/fonts/            local Geist and Geist Mono (SIL OFL 1.1)
 server/
-  api/[...path].ts        same-origin proxy to apps/api
+  api/[...path].ts        local/container-only same-origin proxy to apps/api
 nuxt.config.ts
 ```
 
 ## How it talks to the API
 
-The browser calls `/api/...` **on the Nuxt origin**, and Nitro proxies onward.
-It does not call the API host directly. That avoids three things at once:
+The browser calls `/api/...` **on the same origin**. In local/Compose
+development Nitro proxies onward; in the static GCS deployment the external
+HTTPS load balancer routes `/api/*` to `apps/api`. The browser never calls a
+separate API origin. That avoids three things at once:
 
 - CORS configuration on every API deployment;
 - the API needing to be publicly reachable rather than only reachable by the
@@ -42,16 +44,38 @@ It does not call the API host directly. That avoids three things at once:
 - cross-site cookie handling (`SameSite=None`, credentials) for refresh
   sessions (VOS-030).
 
-Two runtime values, both overridable through `NUXT_*` env vars so one built
-image works across environments (SDD-12 §9):
+The Docker/Nitro build uses these runtime values. The static build embeds the
+public `/api` path at build time and does not use `apiInternalBase`:
 
 | Config | Env var | Meaning |
 |---|---|---|
 | `apiInternalBase` | `NUXT_API_INTERNAL_BASE` | Where Nitro proxies. Server-only; never reaches the browser. |
 | `public.apiBase` | `NUXT_PUBLIC_API_BASE` | What the browser calls. Relative (`/api`). |
 
-In compose, `apiInternalBase` is `http://api:3000/api` — a private address
+In Compose, `apiInternalBase` is `http://api:3000/api` — a private address
 the browser could never resolve, which is exactly why it stays server-side.
+
+## Static production artifact
+
+Run `pnpm --filter @vautrin/web build:static` and upload only
+`apps/web/.output/public/` to GCS. The verification script checks the
+client-only shell, fallback pages, known deep routes, and same-origin API
+configuration. It does not require a running Nuxt server or bake in an API
+origin. The existing `build`/`start` commands and Dockerfile are for local or
+container-based deployment; they are not the GCS release artifact.
+
+The external HTTPS load balancer must send `/api/*` to the API backend and
+static requests to the GCS backend bucket. Configure the URL map to serve
+`index.html` for `/` and each generated `/<route>/index.html` for direct
+navigation to `/<route>`; verify deep links through the actual load balancer.
+Do not assume GCS website `MainPageSuffix` or `NotFoundPage` applies to backend
+bucket requests. If dynamic frontend routes are added, configure a scoped SPA
+fallback using `200.html`, without rewriting `/api/*` or missing asset paths.
+The GCP deployment must set security headers on the load balancer/backend:
+Nitro `routeRules` headers do not accompany static files. Cache hashed
+`_nuxt/` assets immutably but keep HTML shells and `200.html` short-lived.
+Smoke-test login, refresh, logout, and direct deep-link navigation through
+the real HTTPS origin before calling staging ready.
 
 ## Types come from @vautrin/contracts
 

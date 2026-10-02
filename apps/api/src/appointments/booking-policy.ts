@@ -175,7 +175,7 @@ function slotFailure(context: SlotContext, startsAt: Date): BookingFailureCode |
   if (before.date !== start.date || after.date !== start.date) {
     return 'BOOKING_OUTSIDE_BUSINESS_HOURS';
   }
-  const day = context.hours[start.day];
+  const day = context.hours.weekly[start.day];
   if (
     !day.enabled ||
     !day.periods.some(

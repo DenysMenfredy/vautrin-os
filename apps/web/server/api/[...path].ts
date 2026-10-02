@@ -1,8 +1,10 @@
 /**
  * Same-origin proxy to apps/api.
  *
- * The browser calls `/api/...` on the Nuxt origin and Nitro forwards it to
- * the API. The alternative — the browser calling the API host directly —
+ * During local/container development, the browser calls `/api/...` on the
+ * Nuxt origin and Nitro forwards it to the API. Static production hosting
+ * routes `/api/*` at the HTTPS load balancer instead. Calling a separate API
+ * host directly would mean:
  * would mean:
  *
  *   - CORS configuration on every API deployment;

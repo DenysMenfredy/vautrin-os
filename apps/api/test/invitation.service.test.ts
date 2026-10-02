@@ -7,9 +7,12 @@ import { InvitationService } from '../src/tenant/invitation.service.js';
 
 describe('InvitationService', () => {
   it('reports an existing tenant slug when Prisma omits the unique target', async () => {
-    const uniqueViolation = Object.assign(new Error('Unique constraint failed on (not available)'), {
-      code: 'P2002',
-    });
+    const uniqueViolation = Object.assign(
+      new Error('Unique constraint failed on (not available)'),
+      {
+        code: 'P2002',
+      },
+    );
     const transaction = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: '11111111-1111-4111-8111-111111111111' }]),
       $executeRaw: vi.fn().mockResolvedValue(1),

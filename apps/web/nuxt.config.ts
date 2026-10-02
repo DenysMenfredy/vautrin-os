@@ -2,6 +2,12 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-09-19',
 
+  // The dashboard is authenticated and has no SEO pages. A client-rendered
+  // shell can be generated for GCS without prerendering tenant data or
+  // requiring Nitro in production. Local/container builds still run Nitro
+  // for the same-origin /api development proxy.
+  ssr: false,
+
   // AGENTS.md §11 — TypeScript strict mode. `typeCheck` is left off the dev
   // server on purpose: `pnpm typecheck` runs vue-tsc in CI, and type checking
   // on every HMR update makes the dev loop noticeably slower.
@@ -16,12 +22,11 @@ export default defineNuxtConfig({
    * it can point at a private address such as http://api:3000/api inside a
    * container network.
    *
-   * `public.apiBase` is relative on purpose — the browser talks to the Nuxt
-   * origin, which proxies onward. Same-origin means no CORS and no
-   * cross-site cookie handling once auth lands.
+   * `public.apiBase` is relative on purpose — the browser talks to /api on
+   * its own origin. Nitro proxies this locally; the production load balancer
+   * routes /api/* directly to apps/api. Both preserve HttpOnly cookie scope.
    *
-   * Both are overridable at runtime through NUXT_* environment variables,
-   * so one built image works across environments (SDD-12 §9):
+   * The Nitro build can override these with NUXT_* environment variables:
    *   NUXT_API_INTERNAL_BASE, NUXT_PUBLIC_API_BASE
    */
   runtimeConfig: {

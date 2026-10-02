@@ -9,14 +9,14 @@ describe('LeadsService search', () => {
     let capturedWhere: Prisma.LeadWhereInput | undefined;
     const transaction = {
       lead: {
-        findMany: vi.fn(async ({ where }: { where: Prisma.LeadWhereInput }) => {
+        findMany: vi.fn(({ where }: { where: Prisma.LeadWhereInput }) => {
           capturedWhere = where;
-          return [];
+          return Promise.resolve([]);
         }),
       },
     };
     const database = {
-      withTenant: async (
+      withTenant: (
         _tenantId: string,
         operation: (client: typeof transaction) => Promise<unknown>,
       ) => operation(transaction),

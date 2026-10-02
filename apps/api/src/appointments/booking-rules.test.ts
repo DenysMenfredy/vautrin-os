@@ -41,22 +41,74 @@ describe('BookingRules V1 contract', () => {
     ).toBe(false);
   });
 
-  it('rejects invalid zones, overnight or overlapping periods', () => {
-    const monday = validBusinessHours.monday;
+  it('rejects the former flat shape, invalid zones, overnight or overlapping periods', () => {
+    const monday = validBusinessHours.weekly.monday;
+    expect(
+      businessHoursSchema.safeParse({
+        timezone: validBusinessHours.timezone,
+        ...validBusinessHours.weekly,
+      }).success,
+    ).toBe(false);
     expect(
       businessHoursSchema.safeParse({ ...validBusinessHours, timezone: 'invalid-zone' }).success,
     ).toBe(false);
     expect(
       businessHoursSchema.safeParse({
         ...validBusinessHours,
-        monday: { enabled: true, periods: [{ start: '22:00', end: '03:00' }] },
+        weekly: {
+          ...validBusinessHours.weekly,
+          monday: { enabled: true, periods: [{ start: '22:00', end: '03:00' }] },
+        },
       }).success,
     ).toBe(false);
     expect(
       businessHoursSchema.safeParse({
         ...validBusinessHours,
-        monday: { enabled: true, periods: [...monday.periods, { start: '16:00', end: '18:00' }] },
+        weekly: {
+          ...validBusinessHours.weekly,
+          monday: {
+            enabled: true,
+            periods: [...monday.periods, { start: '16:00', end: '18:00' }],
+          },
+        },
       }).success,
     ).toBe(false);
+  });
+
+  it('allows zero or more periods regardless of enabled and accepts unsorted non-overlap', () => {
+    const withMonday = (monday: unknown) => ({
+      ...validBusinessHours,
+      weekly: { ...validBusinessHours.weekly, monday },
+    });
+    expect(businessHoursSchema.safeParse(withMonday({ enabled: true, periods: [] })).success).toBe(
+      true,
+    );
+    expect(
+      businessHoursSchema.safeParse(
+        withMonday({ enabled: false, periods: [{ start: '09:00', end: '10:00' }] }),
+      ).success,
+    ).toBe(true);
+    expect(
+      businessHoursSchema.safeParse(
+        withMonday({
+          enabled: true,
+          periods: [
+            { start: '13:00', end: '14:00' },
+            { start: '09:00', end: '10:00' },
+          ],
+        }),
+      ).success,
+    ).toBe(true);
+    expect(
+      businessHoursSchema.safeParse(
+        withMonday({
+          enabled: true,
+          periods: [
+            { start: '09:00', end: '12:00' },
+            { start: '12:00', end: '17:00' },
+          ],
+        }),
+      ).success,
+    ).toBe(true);
   });
 });

@@ -65,7 +65,7 @@ registerEndpoint('/api/leads', async (event) => {
   if (typeof search === 'string' && search) submittedSearches.push(search);
   return { items: [lead], nextCursor: null };
 });
-registerEndpoint('/api/contacts', async (event) => {
+registerEndpoint('/api/contacts', (event) => {
   if (event.method === 'POST') {
     return {
       id: createdContactId,

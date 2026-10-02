@@ -50,7 +50,7 @@ Pub/Sub is not part of the V1 critical path (ADR-009).
 
 `apps/web` SHALL support a static production build suitable for GCS. Route `/api/*` through the same external HTTPS load balancer to the API backend, and static paths to the GCS backend bucket. This preserves same-origin HttpOnly refresh-cookie behavior. A local/container Nitro proxy must not be required by the static build; browser API calls use `/api`.
 
-Configure and test SPA/static-route fallback for direct navigation to authenticated routes. Generate static assets, upload immutable/versioned assets to GCS with appropriate cache metadata, invalidate only mutable shell assets as needed, and smoke-test through the staging/production load-balancer URL.
+Generate the client-only shell with `apps/web`'s `build:static` command and upload only `.output/public`. Configure and test URL-map rewrites for `/` and direct navigation to each generated frontend route (`/<route>/index.html`); GCS website suffix/error-page settings alone must not be treated as a backend-bucket SPA fallback. If dynamic routes are introduced, scope a `200.html` fallback so `/api/*` and missing assets are never rewritten to application HTML. Set production security headers at the load balancer/backend because Nitro headers do not ship with static files. Cache hashed assets immutably and HTML shells briefly. Smoke-test login, refresh, logout, and deep links through the staging/production HTTPS load-balancer URL before release.
 
 ## 5. API deployment
 
@@ -74,7 +74,7 @@ Compose provides PostgreSQL + pgvector, Redis, optional Mailpit and provider moc
 
 ## 10. CI pipeline
 
-PRs install pinned dependencies, lint, typecheck, run unit/integration and tenant/RLS security tests, build affected apps/packages and containers, and run security/secret/dependency checks. Product critical-path E2E remains required before MVP completion. `main` must remain deployable.
+PRs install pinned dependencies, lint, typecheck, run unit/integration and tenant/RLS security tests, build affected apps/packages, generate and verify the static frontend artifact, and run security/secret/dependency checks. Product critical-path E2E remains required before MVP completion. `main` must remain deployable.
 
 ## 11. Main/staging deployment
 
