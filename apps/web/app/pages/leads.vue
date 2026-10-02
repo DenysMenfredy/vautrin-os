@@ -272,7 +272,7 @@ useHead({ title: 'Leads' });
       <section class="surface surface--flush" aria-label="Leads list">
         <form class="toolbar" @submit.prevent="applySearch">
           <div class="field field--compact">
-            <label for="lead-search">Search leads</label><input id="lead-search" v-model="searchInput" type="search" placeholder="Name, title or service">
+            <label for="lead-search">Search leads</label><input id="lead-search" v-model="searchInput" type="search" placeholder="Name, email, phone, title or service">
           </div>
           <div class="field field--compact">
             <label for="lead-stage">Stage</label><select id="lead-stage" v-model="status" @change="resetFilters">

@@ -141,7 +141,10 @@ beforeAll(async () => {
   ]);
 
   contactA = await createdId(
-    await request('POST', '/contacts', ownerToken, { firstName: 'Tenant A Customer' }),
+    await request('POST', '/contacts', ownerToken, {
+      firstName: 'Tenant A',
+      lastName: 'Customer',
+    }),
   );
   contactB = await createdId(
     await request('POST', '/contacts', otherOwnerToken, { firstName: 'Tenant B Customer' }),
@@ -221,6 +224,17 @@ describe('CRM Gate D (VOS-051–055)', () => {
     );
     const searched = await request('GET', '/leads?status=NEW&search=KITCHEN', ownerToken);
     expect(await searched.json()).toMatchObject({ items: [{ id: leadId }], nextCursor: null });
+    const searchedByContact = await request(
+      'GET',
+      `/leads?search=${encodeURIComponent('Tenant A Customer')}`,
+      ownerToken,
+    );
+    const contactSearchPage = (await searchedByContact.json()) as {
+      items: Array<{ id: string }>;
+    };
+    expect(contactSearchPage.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([leadId, secondLeadId]),
+    );
     const pageResponse = await request('GET', '/leads?limit=1', ownerToken);
     const page = (await pageResponse.json()) as {
       items: Array<{ id: string }>;

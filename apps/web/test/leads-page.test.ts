@@ -1,5 +1,5 @@
 import { mountSuspended, registerEndpoint } from '@nuxt/test-utils/runtime';
-import { readBody } from 'h3';
+import { getQuery, readBody } from 'h3';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import LeadsPage from '../app/pages/leads.vue';
@@ -25,6 +25,7 @@ const lead = {
 };
 let transitions = 0;
 let createdLeadBody: Record<string, unknown> | null = null;
+let submittedSearches: string[] = [];
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -60,6 +61,8 @@ registerEndpoint('/api/leads', async (event) => {
       service: 'kitchen-remodel',
     };
   }
+  const search = getQuery(event).search;
+  if (typeof search === 'string' && search) submittedSearches.push(search);
   return { items: [lead], nextCursor: null };
 });
 registerEndpoint('/api/contacts', async (event) => {
@@ -171,5 +174,14 @@ describe('leads workspace', () => {
     await wrapper.find('.modal form').trigger('submit');
     await vi.waitFor(() => expect(createdLeadBody).not.toBeNull());
     expect(createdLeadBody).toMatchObject({ service: 'kitchen-remodel' });
+  });
+
+  it('submits the customer search term to the lead API', async () => {
+    submittedSearches = [];
+    const wrapper = await mountSuspended(LeadsPage);
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Maria Johnson'));
+    await wrapper.find('#lead-search').setValue('Maria Johnson');
+    await wrapper.find('form.toolbar').trigger('submit');
+    await vi.waitFor(() => expect(submittedSearches).toContain('Maria Johnson'));
   });
 });

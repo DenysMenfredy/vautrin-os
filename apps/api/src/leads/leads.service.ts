@@ -38,10 +38,24 @@ export class LeadsService {
     if (options.assignedUserId) where.assignedUserId = options.assignedUserId;
     const search = options.search?.trim();
     if (search) {
+      const contactSearch: Prisma.ContactWhereInput = {
+        tenantId,
+        deletedAt: null,
+        AND: search.split(/\s+/).map((term) => ({
+          OR: [
+            { firstName: { contains: term, mode: 'insensitive' } },
+            { lastName: { contains: term, mode: 'insensitive' } },
+            { email: { contains: term, mode: 'insensitive' } },
+            { phone: { contains: term } },
+            { company: { contains: term, mode: 'insensitive' } },
+          ],
+        })),
+      };
       where.OR = [
         { title: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
         { service: { contains: search, mode: 'insensitive' } },
+        { contact: { is: contactSearch } },
       ];
     }
     if (cursor) where.AND = [cursorFilter(cursor)];
