@@ -28,7 +28,7 @@ export interface ErrorResponseBody {
  *
  *   1. One response shape, so clients can parse failures without special
  *      cases per endpoint.
- *   2. Nothing internal escapes. An unexpected exception is logged in full
+ *   2. Nothing internal escapes. An unexpected exception is logged with safe metadata
  *      and reported as a bare 500 — stack traces, driver errors and SQL
  *      fragments are exactly the details an attacker would like, and they are
  *      useless to a legitimate caller anyway.
@@ -60,7 +60,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
           typeof payload === 'string'
             ? payload
             : ((payload as { message?: string | string[] }).message ?? exception.message),
-        path: request.originalUrl,
+        path: request.originalUrl.split('?')[0] ?? request.path,
         timestamp: new Date().toISOString(),
         ...(typeof code === 'string' && /^BOOKING_[A-Z_]+$/.test(code) ? { code } : {}),
         ...(Array.isArray(missingFields) &&
@@ -74,16 +74,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(
-      `Unhandled exception on ${request.method} ${request.originalUrl}`,
-      exception instanceof Error ? exception.stack : String(exception),
-    );
+    this.logger.error({
+      operation: 'http.exception',
+      method: request.method,
+      path: request.originalUrl.split('?')[0] ?? request.path,
+      correlationId,
+      error: exception instanceof Error ? exception.name : 'UnknownError',
+    });
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
       error: 'InternalServerError',
       message: 'An unexpected error occurred.',
-      path: request.originalUrl,
+      path: request.originalUrl.split('?')[0] ?? request.path,
       timestamp: new Date().toISOString(),
       ...(correlationId ? { correlationId } : {}),
     } satisfies ErrorResponseBody);

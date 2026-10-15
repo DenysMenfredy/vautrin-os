@@ -216,7 +216,7 @@ Generation/streaming contract.
 
 ### VOS-071 [P1] First LLM adapter
 Select provider during implementation.
-**Status:** OPEN — intentionally deferred until the product owner selects an LLM provider.
+**Status:** DONE — product owner selected OpenAI. Responses adapter normalizes tools/usage, preserves encrypted reasoning in stateless follow-up turns, disables storage, bounds requests and redacts provider failures. Mocked adapter tests pass; real model staging smoke remains.
 
 ### VOS-072 [P1] Agent entity/configuration
 Versioned agent configuration.
@@ -224,7 +224,7 @@ Versioned agent configuration.
 
 ### VOS-073 [P1] Tool framework
 Typed tool contracts + authorization.
-**Status:** PARTIAL — typed allow-listed registry, input/output parsing, permission and approval gates, PostgreSQL idempotency claims, and tenant-scoped tool audit persistence are implemented. Concrete receptionist tools and runtime wiring remain.
+**Status:** DONE — typed allow-listed registry, parsing/permission/approval gates, PostgreSQL claims/replay and audit are wired to conversation-bound receptionist tools. Grounding, unavailable slots, rejected booking confirmation and cancellation are exercised by the release E2E.
 
 ### VOS-074 [P1] Business context builder
 Structured tenant context.
@@ -241,7 +241,7 @@ Tenant-filtered semantic retrieval.
 
 ### VOS-078 [P1] Agent execution telemetry
 Agent/tool/provider metadata.
-**Status:** PARTIAL — provider/model, agent/prompt versions, token/cached-token counts, estimated cost, latency, structured result, tool count, failure, and handoff persistence are implemented; the runtime must call it once a provider adapter is selected.
+**Status:** DONE — runtime records pinned model/prompt, cumulative reported token usage, latency, tool outcomes, failures and handoff. Estimated cost stays unset when no trusted model pricing is configured.
 
 ---
 
@@ -274,6 +274,7 @@ Send through provider abstraction.
 **Status:** DONE — literal SMS body config queues a tenant-scoped message and `message.send_requested` outbox event atomically with the step and audit records; existing notification processing routes through the Twilio provider adapter with send-time opt-out checks. Worker integration coverage verifies queue routing, idempotent replay, and opt-out suppression.
 
 ### VOS-087 [P1] Agent action
+**Status:** DONE — asynchronous agent action executes on the AI queue with pinned workflow/agent versions, durable completion, leases, retries and cancellation.
 Invoke agent.
 
 ### VOS-088 [P1] Idempotency
@@ -307,18 +308,23 @@ Lead → qualification → booking.
 ## EPIC E10 — AI Receptionist
 
 ### VOS-100 [P1] Receptionist agent
+**Status:** IMPLEMENTED — grounded response plans and explicitly authorized tools; deterministic behavior gates pass. Live model quality remains a staging gate.
 Business-grounded conversation.
 
 ### VOS-101 [P1] Qualification toolset
+**Status:** DONE — evidence-bound qualification/contact capture plus shared booking rules; tenant isolation and no-confirmation cases tested.
 Service/location/budget/timeline.
 
 ### VOS-102 [P1] Human handoff
+**Status:** DONE — audited human inbox handoff pauses automation; explicit acknowledgment and operator resumption supported.
 Explicit escalation.
 
 ### VOS-103 [P1] Receptionist evaluation set
+**Status:** DONE — versioned synthetic receptionist evaluation cases, executed by the release E2E. Live model evaluation is separate.
 Synthetic regression cases.
 
 ### VOS-104 [P1] Missed-call workflow
+**Status:** DONE — controlled missed-call intake, recovery delay and bounded follow-ups stop on reply/opt-out/handoff/lead state/cancellation. Full voice intake remains deferred.
 Call missed → AI/SMS → follow-up.
 
 ---
@@ -342,6 +348,7 @@ Draft communication only; no autonomous price approval.
 ## EPIC E12 — Audit and observability
 
 ### VOS-120 [P0] Structured logging
+**Status:** IMPLEMENTED — safe JSON request/job logs and persisted correlation IDs; deployed log ingestion/alerts need staging verification.
 Request/job correlation.
 
 ### VOS-121 [P0] Audit log
@@ -349,15 +356,19 @@ Request/job correlation.
 Important state changes.
 
 ### VOS-122 [P1] Workflow telemetry
+**Status:** DONE — persisted workflow steps, attempt/error/duration and tenant-scoped paginated operational inspection.
 Run/step metrics.
 
 ### VOS-123 [P1] AI telemetry
+**Status:** DONE — runtime usage/latency/model/prompt/handoff metrics exposed without tool inputs or credentials.
 Provider/model/token/latency where available.
 
 ### VOS-124 [P1] Error tracking
+**Status:** PREPARED — Cloud Logging error alerts and uptime checks in Terraform; alert delivery needs applied staging evidence.
 Centralized exception reporting.
 
 ### VOS-125 [P1] Operational dashboard
+**Status:** IMPLEMENTED — Overview summary, paginated run inspection, cancellation and human inbox links.
 System health and workflow metrics.
 
 ---
@@ -365,14 +376,18 @@ System health and workflow metrics.
 ## EPIC E13 — Remodeling template
 
 ### VOS-130 [P1] Remodeling services
+**Status:** DONE — idempotent installer adds five service entries and explicit postal coverage.
 Kitchen, bathroom, whole-home, additions, etc.
 
 ### VOS-131 [P1] Remodeling custom fields
+**Status:** DONE — installer adds six lead fields; qualification persists source-grounded values.
 Project type, property type, budget, timeline, location.
 
 ### VOS-132 [P1] Remodeling qualification workflow
+**Status:** DONE — activated reply workflow invokes qualification/booking through authorized runtime.
 
 ### VOS-133 [P1] Remodeling default receptionist configuration
+**Status:** DONE — versioned policy, explicit OpenAI model, capabilities and two default workflows.
 
 ### VOS-134 [P1] Remodeling seed/demo tenant
 
@@ -528,4 +543,14 @@ The v0.3 exit gate is the provider-mocked missed-call-to-booking E2E path plus a
 
 Only the first coherent slices should be marked DONE as they pass their own acceptance tests. Provider selection and production GCP credentials are not specified by the pack and must not be guessed or committed.
 
-Current v0.3 progress: workflow retry/failure execution and the provider-neutral AI foundation (agent configuration, context builder, typed tool framework, and telemetry persistence) are implemented in addition to event dispatch and existing condition/wait/message workflow steps. The first LLM adapter and agent-action runtime remain pending provider selection and concrete tools. New API/worker/queue unit suites pass; database-backed integration validation for the added migrations and retry/context/telemetry paths remains. Messaging and calendar provider integrations exist, while OAuth provisioning, booking, receptionist qualification/handoff, remodeling template, deployment infrastructure, and the critical-path E2E release gate remain open.
+Current v0.3 progress (2026-10-14): OpenAI runtime, authorized qualification/contact/
+availability/booking/handoff tools, durable async actions/retries, remodeling
+installation, controlled missed-call recovery, OAuth/provisioning, operational
+metrics/run inspection/cancellation and deterministic release E2E are implemented.
+See `docs/v0.3-completion-plan.md` for check evidence and remaining gates. GCP
+Terraform, deployment/smoke and recovery runbooks are prepared under the product
+owner's instruction; they have not been applied. Two existing frontend tooling
+advisories have no patched release and keep the strict security gate blocked.
+Live provider/model behavior, TLS/cookie/proxy routing and disaster-recovery
+checks are still required. Knowledge/RAG, full AI voice and estimates remain
+outside this v0.3 release path.

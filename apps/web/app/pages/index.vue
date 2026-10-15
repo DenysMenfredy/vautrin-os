@@ -174,6 +174,7 @@ useHead({ title: 'Overview' });
           </div>
         </section>
       </div>
+      <OperationsPanel />
     </template>
   </div>
 </template>

@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConsoleLogger, Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import type { Environment } from '@vautrin/config';
@@ -8,11 +8,14 @@ import helmet from 'helmet';
 
 import { AppModule } from './app.module.js';
 import { AllExceptionsFilter } from './common/all-exceptions.filter.js';
+import { requestLogging } from './common/request-logging.js';
 import { ENVIRONMENT } from './config/environment.module.js';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
   const environment = app.get<Environment>(ENVIRONMENT);
+  app.useLogger(new ConsoleLogger({ json: true }));
+  app.use(requestLogging);
   const logger = new Logger('Bootstrap');
 
   // Configure proxy awareness before any request reaches rate limiting or

@@ -43,10 +43,13 @@ FROM base AS build
 # Manifests before source, so the dependency layer is only invalidated when
 # a package.json or the lockfile changes — not on every code edit.
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY packages/auth/package.json packages/auth/
+COPY patches ./patches
 COPY packages/config/package.json   packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/database/package.json packages/database/
 COPY packages/integrations/package.json packages/integrations/
+COPY packages/revenue/package.json packages/revenue/
 COPY packages/queues/package.json   packages/queues/
 COPY packages/testing/package.json  packages/testing/
 COPY apps/api/package.json          apps/api/
@@ -89,13 +92,11 @@ USER node
 # No EXPOSE: this is a standalone context that consumes queues and listens on
 # no port (SDD-02 §3).
 
-# Checks that the worker's one hard dependency is reachable. Be clear about
-# what this does NOT prove: it pings Redis from a separate process, so it
-# cannot tell you the consumer loop is still turning. A true liveness signal
-# needs a heartbeat written by the processors themselves, which arrives with
-# workflow telemetry (VOS-122).
+# The main worker process writes a timestamp every 15 seconds after boot.
+# This checks process-loop liveness; job lifecycle logs and queue/run telemetry
+# provide the separate evidence that work is being consumed.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["node", "-e", "const R=require('ioredis');const c=new R(process.env.REDIS_URL,{lazyConnect:true,maxRetriesPerRequest:1});c.connect().then(()=>c.ping()).then(()=>{c.disconnect();process.exit(0)}).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "const f=require('node:fs');try{process.exit(Date.now()-Number(f.readFileSync('/tmp/vautrin-worker-heartbeat','utf8'))<45000?0:1)}catch{process.exit(1)}"]
 
 # Exec form so the process is PID 1 and receives SIGTERM directly; Nest's
 # shutdown hooks then let an in-flight job finish instead of leaving it to

@@ -38,3 +38,10 @@ backlog
 infra
 docker-compose*.yml
 apps/api/REST_COLLECTION
+.local-secrets
+**/*.tfvars
+**/*.tfstate*
+**/.terraform
+
+# Ephemeral GitHub workload identity credentials
+gha-creds-*.json

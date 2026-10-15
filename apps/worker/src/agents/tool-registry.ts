@@ -15,6 +15,8 @@ export interface AgentToolContext {
   readonly agentRunId: string;
   readonly correlationId?: string;
   readonly idempotencyKey?: string;
+  readonly conversationId?: string;
+  readonly leadId?: string;
 }
 
 export interface AgentToolDefinition<Input, Output> {
@@ -47,9 +49,12 @@ export interface AgentToolAuditEvent {
   readonly approvalRequired: boolean;
   readonly errorCode?: string;
   readonly latencyMs: number;
+  readonly input?: unknown;
+  readonly output?: unknown;
 }
 
 export interface AgentToolAuditSink {
+  replay?(event: AgentToolAuditEvent): Promise<AgentToolResult | undefined>;
   /** Atomically reserves a side-effecting call key before its handler runs. */
   claim(event: AgentToolAuditEvent): Promise<boolean>;
   record(event: AgentToolAuditEvent): Promise<void>;
@@ -119,8 +124,10 @@ export class AgentToolRegistry {
     let errorCode: string | undefined;
     let result: AgentToolResult;
     let shouldRecord = true;
+    let validatedInput: unknown;
     try {
       const input = definition.parseInput(rawInput);
+      validatedInput = input;
       authorized = await authorization.isAuthorized(context, definition.permission);
       if (!authorized) {
         status = 'DENIED';
@@ -136,6 +143,19 @@ export class AgentToolRegistry {
         errorCode = 'approval_required';
         result = { status: 'AWAITING_APPROVAL', errorCode: 'approval_required' };
       } else {
+        const cached = await audit.replay?.({
+          tenantId: context.tenantId,
+          agentRunId: context.agentRunId,
+          ...(context.idempotencyKey ? { idempotencyKey: context.idempotencyKey } : {}),
+          toolName,
+          permission: definition.permission,
+          sideEffect: definition.sideEffect,
+          status: 'RUNNING',
+          authorized: true,
+          approvalRequired: definition.requiresApproval,
+          latencyMs: 0,
+        });
+        if (cached) return cached;
         if (definition.sideEffect !== 'none') {
           if (!context.idempotencyKey) throw new ToolInputError('idempotency_key_required');
           const claimed = await audit.claim({
@@ -149,6 +169,7 @@ export class AgentToolRegistry {
             authorized: true,
             approvalRequired: definition.requiresApproval,
             latencyMs: Math.max(0, Date.now() - startedAt),
+            input,
           });
           if (!claimed) {
             status = 'FAILED';
@@ -187,13 +208,15 @@ export class AgentToolRegistry {
         approvalRequired: definition.requiresApproval,
         ...(errorCode ? { errorCode } : {}),
         latencyMs: Math.max(0, Date.now() - startedAt),
+        ...(authorized && validatedInput !== undefined ? { input: validatedInput } : {}),
+        ...(result.status === 'SUCCEEDED' ? { output: result.output } : {}),
       });
     }
     return result;
   }
 }
 
-class ToolInputError extends Error {
+export class ToolInputError extends Error {
   constructor(readonly code: string) {
     super(code);
   }

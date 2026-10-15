@@ -141,7 +141,7 @@ export class WorkflowMessageStepExecutor {
         provider: 'twilio',
         correlationId: run.correlationId,
         idempotencyKey,
-        metadata: { integrationId: integration.id },
+        metadata: { integrationId: integration.id, workflowRunId: run.id, stepId: step.id },
       },
     });
     const event = messageSendRequestedEvent(message.id, conversationId, contact.id);

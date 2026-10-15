@@ -1078,6 +1078,9 @@ model Agent {
 /// debugging and cost analysis.
 model AgentRun {
   id             String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  idempotencyKey String? @map("idempotency_key")
+  executionLease String? @map("execution_lease") @db.Uuid
+  leaseExpiresAt DateTime? @map("lease_expires_at") @db.Timestamptz(6)
   tenantId       String         @map("tenant_id") @db.Uuid
   agentId        String         @map("agent_id") @db.Uuid
   agentVersion   Int            @map("agent_version")
@@ -1114,6 +1117,7 @@ model AgentRun {
   toolExecutions ToolExecution[]
   messages       Message[]
 
+  @@unique([tenantId, idempotencyKey])
   @@index([tenantId, status, startedAt])
   @@index([tenantId, agentId, startedAt])
   @@index([correlationId])

@@ -153,3 +153,4 @@ function roleOf(connectionString: string): string | undefined {
 
 export const isProduction = (environment: Environment): boolean =>
   environment.NODE_ENV === 'production';
+export { redisTlsOptions } from './redis-tls.js';

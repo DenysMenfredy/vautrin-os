@@ -31,9 +31,13 @@ and acceptance criteria.
 
 V0.3 includes RLS-safe outbox dispatch, tenant-scoped conversation/message
 APIs, durable workflow execution, booking rules and availability, and Twilio
-and Google Calendar provider integrations. The operations frontend is merged
-and has a static build target, but the receptionist agent runtime, LLM
-provider, and GCP staging remain open v0.3 release blockers.
+and Google Calendar provider integrations. The OpenAI receptionist, typed grounded
+qualification/booking tools, human handoff, remodeling installer, missed-call
+recovery and operations frontend are implemented and covered by deterministic
+release tests. See [local v0.3 setup](docs/v0.3-local-setup.md) and the
+[completion evidence](docs/v0.3-completion-plan.md). GCP Terraform and deployment
+artifacts are prepared; live provider smoke, staging/restore/rollback drills and
+unpatched dependency advisories remain release gates.
 
 ## Source-review archives
 

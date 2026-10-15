@@ -86,3 +86,14 @@ and audit record atomically; provider delivery remains on the existing
 notifications queue and rechecks SMS opt-out at send time. Agent invocation
 (VOS-087) and webhook ingestion (VOS-064) remain pending. The worker Dockerfile
 is present (VOS-023); structured logging remains pending (VOS-120).
+
+## V0.3 receptionist and actions
+
+The AI queue executes the OpenAI receptionist outside workflow database
+transactions. Runtime/tool authorization binds every action to the job's tenant,
+conversation and lead. PostgreSQL keeps action identity, leases, tool claims,
+retry attempt/due state, token usage and handoff. Recovery polling reconstructs
+missing work after Redis loss; queued messages recheck cancellation and handoff.
+The process writes a 15-second heartbeat for container health, while job logs
+and run telemetry show actual consumption. Setup and policy limits are in
+`../../docs/v0.3-local-setup.md`.

@@ -595,6 +595,17 @@ export class ConversationsService {
       if (changed.count === 0) throw new NotFoundException('Conversation not found.');
       const result = await tx.conversation.findFirst({ where: { id: conversationId, tenantId } });
       if (!result) throw new NotFoundException('Conversation not found.');
+      if (input.status === 'OPEN') {
+        const metadata =
+          result.metadata && typeof result.metadata === 'object' && !Array.isArray(result.metadata)
+            ? result.metadata
+            : {};
+        result.metadata = { ...metadata, handoff: false, handoffReason: null };
+        await tx.conversation.update({
+          where: { id: result.id, tenantId },
+          data: { metadata: result.metadata },
+        });
+      }
       await tx.auditLog.create({
         data: {
           tenantId,
@@ -636,12 +647,22 @@ export class ConversationsService {
 }
 
 function mapConversation(row: Conversation): ConversationResponse {
+  const metadata =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? row.metadata
+      : {};
   return {
     id: row.id,
     contactId: row.contactId,
     leadId: row.leadId,
     channel: row.channel,
     status: row.status,
+    handoff:
+      metadata.handoff === true &&
+      typeof metadata.handoffReason === 'string' &&
+      /^[a-z][a-z0-9_]{0,127}$/.test(metadata.handoffReason)
+        ? { reason: metadata.handoffReason }
+        : null,
     subject: row.subject,
     assignedUserId: row.assignedUserId,
     lastMessageAt: row.lastMessageAt?.toISOString() ?? null,

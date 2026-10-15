@@ -2,7 +2,25 @@
   "$schema": "https://turborepo.com/schema.json",
   "ui": "stream",
   "globalEnv": ["NODE_ENV"],
-  "globalPassThroughEnv": ["DATABASE_URL", "DATABASE_MIGRATION_URL", "REDIS_URL"],
+  "globalPassThroughEnv": [
+    "DATABASE_URL",
+    "DATABASE_MIGRATION_URL",
+    "REDIS_URL",
+    "JWT_SECRET",
+    "TRUSTED_ORIGINS",
+    "TRUST_PROXY",
+    "OPENAI_API_KEY",
+    "GOOGLE_OAUTH_CLIENT_ID",
+    "GOOGLE_OAUTH_CLIENT_SECRET",
+    "GOOGLE_OAUTH_REDIRECT_URI",
+    "GCP_PROJECT_ID",
+    "LOCAL_SECRET_DIRECTORY",
+    "LOCAL_SECRET_ENCRYPTION_KEY",
+    "REDIS_TLS_CA_BASE64",
+    "VAUTRIN_*",
+    "SMOKE_OWNER_EMAIL",
+    "SMOKE_OWNER_PASSWORD"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build", "generate"],
@@ -27,6 +45,11 @@
       "cache": false
     },
     "generate": {
+      "cache": false
+    },
+    "test:e2e": {
+      "dependsOn": ["^build", "generate"],
+      "passThroughEnv": ["JWT_SECRET"],
       "cache": false
     }
   }

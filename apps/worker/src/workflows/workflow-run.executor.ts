@@ -57,6 +57,8 @@ export class WorkflowRunExecutor {
   handle(value: unknown): Promise<WorkflowExecutionResult> {
     assertWorkflowRunJob(value);
     const job: WorkflowRunJob = value;
+    if (job.action === 'execute')
+      throw new Error('Asynchronous actions must run on the AI processor.');
 
     return this.database.withJobTenant(job, async (tx, context) => {
       const locked = await tx.$queryRaw<LockedWorkflowRun[]>`
@@ -143,6 +145,17 @@ export class WorkflowRunExecutor {
       }
 
       let nextIndex = 0;
+      if (job.action === 'start' && run.currentStepId) {
+        const completed = await tx.workflowStepRun.findFirst({
+          where: {
+            tenantId: context.tenantId,
+            workflowRunId: run.id,
+            stepId: run.currentStepId,
+            status: 'COMPLETED',
+          },
+        });
+        if (completed) nextIndex = completed.stepIndex + 1;
+      }
       if (job.action === 'wake') {
         nextIndex = definition.steps.findIndex((step) => step.id === job.stepId);
         const waitStep = definition.steps[nextIndex];
@@ -248,6 +261,78 @@ export class WorkflowRunExecutor {
     }
 
     const idempotencyKey = `run-${run.id}-step-${step.id}`;
+    if (step.type === 'call_agent' || step.type === 'create_appointment') {
+      const scheduledFor = new Date();
+      await tx.workflowStepRun.create({
+        data: {
+          tenantId,
+          workflowRunId: run.id,
+          stepId: step.id,
+          stepIndex: startIndex,
+          stepType: toDatabaseStepType(step.type),
+          status: 'SCHEDULED',
+          input: step.config as Prisma.InputJsonValue,
+          idempotencyKey,
+          attempt: 1,
+          maxAttempts: 3,
+          scheduledFor,
+        },
+      });
+      await tx.workflowRun.update({
+        where: { id: run.id, tenantId },
+        data: { status: 'WAITING', currentStepId: step.id, scheduledFor },
+      });
+      await this.audit(tx, tenantId, run.id, 'workflow.action.scheduled');
+      return { result: 'waiting', runId: run.id };
+    }
+    if (step.type === 'human_handoff') {
+      const context = await this.workflowContextBuilder.build(
+        tx,
+        tenantId,
+        run,
+        workflow,
+        startIndex,
+      );
+      const conversationId =
+        typeof context.conversation?.id === 'string' ? context.conversation.id : undefined;
+      if (!conversationId)
+        return this.failRun(tx, run.id, tenantId, 'handoff_conversation_missing', step.id);
+      const conversation = await tx.conversation.findFirst({
+        where: { id: conversationId, tenantId },
+      });
+      const metadata =
+        conversation?.metadata &&
+        typeof conversation.metadata === 'object' &&
+        !Array.isArray(conversation.metadata)
+          ? conversation.metadata
+          : {};
+      const reason =
+        typeof step.config.reason === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(step.config.reason)
+          ? step.config.reason
+          : 'workflow_requested';
+      await tx.conversation.update({
+        where: { id: conversationId, tenantId },
+        data: {
+          status: 'PENDING',
+          metadata: { ...metadata, handoff: true, handoffReason: reason, workflowRunId: run.id },
+        },
+      });
+      await tx.workflowStepRun.create({
+        data: {
+          tenantId,
+          workflowRunId: run.id,
+          stepId: step.id,
+          stepIndex: startIndex,
+          stepType: 'HUMAN_HANDOFF',
+          status: 'COMPLETED',
+          idempotencyKey,
+          output: { conversationId, reason },
+          completedAt: new Date(),
+        },
+      });
+      await this.audit(tx, tenantId, run.id, 'conversation.handoff');
+      return this.executeFrom(tx, run, tenantId, workflow, steps, startIndex + 1, policies, 1);
+    }
     if (step.type === 'condition') {
       return this.executeCondition(
         tx,

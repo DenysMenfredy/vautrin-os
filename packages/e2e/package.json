@@ -1,0 +1,35 @@
+{
+  "name": "@vautrin/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Provider-mocked v0.3 release-gate E2E",
+  "scripts": {
+    "test:e2e": "dotenv -e ../../.env -- vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@vautrin/api": "workspace:*",
+    "@vautrin/worker": "workspace:*",
+    "@vautrin/auth": "workspace:*",
+    "@vautrin/contracts": "workspace:*",
+    "@vautrin/database": "workspace:*",
+    "@vautrin/integrations": "workspace:*",
+    "@vautrin/queues": "workspace:*",
+    "@vautrin/revenue": "workspace:*",
+    "@nestjs/testing": "^12.0.3",
+    "@nestjs/common": "^12.0.3",
+    "@nestjs/bullmq": "^12.0.0",
+    "bullmq": "^6.3.8",
+    "reflect-metadata": "^0.2.2",
+    "twilio": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "@vautrin/testing": "workspace:*",
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0",
+    "vitest": "4.1.11",
+    "dotenv-cli": "^8.0.0"
+  }
+}

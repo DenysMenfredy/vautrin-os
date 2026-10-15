@@ -25,5 +25,7 @@ export * from './errors.js';
 export * from './events.js';
 export * from './health.js';
 export * from './leads.js';
+export * from './operations.js';
+export * from './receptionist.js';
 export * from './workflow-policies.js';
 export * from './workflows.js';

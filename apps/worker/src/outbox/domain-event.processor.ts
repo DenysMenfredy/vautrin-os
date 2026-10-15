@@ -133,4 +133,26 @@ export class DomainEventProcessor extends WorkerHost {
       `Workflow job failed tenantId=${job?.data?.tenantId ?? 'unknown'} jobId=${job?.id ?? 'unknown'} error=${error.name}`,
     );
   }
+
+  @OnWorkerEvent('active')
+  onActive(job: Job<DurableEventJob | WorkflowRunJob>): void {
+    this.logger.log({
+      operation: 'worker.job.started',
+      queue: QUEUE.WORKFLOW,
+      jobId: job.id,
+      tenantId: job.data.tenantId,
+      correlationId: job.data.correlationId ?? null,
+      attempt: job.attemptsMade + 1,
+    });
+  }
+  @OnWorkerEvent('completed')
+  onCompleted(job: Job<DurableEventJob | WorkflowRunJob>): void {
+    this.logger.log({
+      operation: 'worker.job.completed',
+      queue: QUEUE.WORKFLOW,
+      jobId: job.id,
+      tenantId: job.data.tenantId,
+      durationMs: job.finishedOn && job.processedOn ? job.finishedOn - job.processedOn : null,
+    });
+  }
 }

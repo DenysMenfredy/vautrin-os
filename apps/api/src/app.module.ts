@@ -14,6 +14,8 @@ import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
 import { IntegrationsModule } from './integrations/integrations.module.js';
 import { LeadsModule } from './leads/leads.module.js';
+import { OperationsModule } from './operations/operations.module.js';
+import { RevenueModule } from './revenue/revenue.module.js';
 import { TenantModule } from './tenant/tenant.module.js';
 import { WorkflowsModule } from './workflows/workflows.module.js';
 
@@ -46,6 +48,8 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
     HealthModule,
     IntegrationsModule,
     WorkflowsModule,
+    RevenueModule,
+    OperationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: JwtAuthGuard },

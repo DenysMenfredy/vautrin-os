@@ -33,6 +33,7 @@ export class AuthRateLimitService implements OnModuleDestroy {
 
   constructor(@Inject(ENVIRONMENT) environment: Environment) {
     this.redis = new Redis(environment.REDIS_URL, {
+      ...redisTlsOptions(environment.REDIS_URL),
       lazyConnect: true,
       enableOfflineQueue: false,
       maxRetriesPerRequest: 1,
@@ -127,3 +128,5 @@ function firstExceeded(...decisions: AuthRateLimitDecision[]): AuthRateLimitDeci
     }
   );
 }
+
+import { redisTlsOptions } from '@vautrin/config';

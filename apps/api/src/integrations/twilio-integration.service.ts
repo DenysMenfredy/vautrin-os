@@ -1,9 +1,12 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import type { TwilioCredentialResolver, TwilioCredentials } from '@vautrin/integrations';
+import {
+  IntegrationCredentialStore,
+  type TwilioCredentialResolver,
+  type TwilioCredentials,
+} from '@vautrin/integrations';
 
 import { DatabaseService } from '../database/database.service.js';
 
-const SECRET_REF = /^env:(VAUTRIN_TWILIO_[A-Z0-9_]+)$/;
 const ACCOUNT_SID = /^AC[0-9a-f]{32}$/i;
 const KEY_SID = /^SK[0-9a-f]{32}$/i;
 const SERVICE_SID = /^MG[0-9a-f]{32}$/i;
@@ -30,13 +33,13 @@ export class TwilioIntegrationService implements TwilioCredentialResolver {
       }),
     );
     if (!integration?.credentialsRef) throw new ForbiddenException('Integration unavailable.');
-    const match = SECRET_REF.exec(integration.credentialsRef);
-    if (!match?.[1]) throw new ForbiddenException('Integration unavailable.');
-    const secret = process.env[match[1]];
-    if (!secret) throw new ForbiddenException('Integration unavailable.');
     let value: unknown;
     try {
-      value = JSON.parse(secret);
+      value = await new IntegrationCredentialStore().read(
+        tenantId,
+        'twilio',
+        integration.credentialsRef,
+      );
     } catch {
       throw new ForbiddenException('Integration unavailable.');
     }

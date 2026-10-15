@@ -22,6 +22,7 @@ export interface ConversationResponse {
   readonly leadId: string | null;
   readonly channel: ConversationChannel;
   readonly status: ConversationStatus;
+  readonly handoff?: { readonly reason: string } | null;
   readonly subject: string | null;
   readonly assignedUserId: string | null;
   readonly lastMessageAt: string | null;

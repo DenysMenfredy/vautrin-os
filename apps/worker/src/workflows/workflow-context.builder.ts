@@ -56,9 +56,24 @@ export class WorkflowContextBuilder {
       };
     }
 
-    const leadId = stringValue(domainPayload.leadId);
-    const eventContactId = stringValue(domainPayload.contactId);
     const conversationId = stringValue(domainPayload.conversationId);
+    const conversationRow = conversationId
+      ? await tx.conversation.findFirst({
+          where: { id: conversationId, tenantId },
+          select: {
+            id: true,
+            leadId: true,
+            contactId: true,
+            channel: true,
+            status: true,
+            assignedUserId: true,
+            lastMessageAt: true,
+          },
+        })
+      : null;
+    const leadId = stringValue(domainPayload.leadId) ?? conversationRow?.leadId;
+    const eventContactId = stringValue(domainPayload.contactId);
+
     const leadRow = leadId
       ? await tx.lead.findFirst({
           where: { id: leadId, tenantId },
@@ -77,20 +92,6 @@ export class WorkflowContextBuilder {
           },
         })
       : null;
-    const conversationRow = conversationId
-      ? await tx.conversation.findFirst({
-          where: { id: conversationId, tenantId },
-          select: {
-            id: true,
-            leadId: true,
-            contactId: true,
-            channel: true,
-            status: true,
-            assignedUserId: true,
-            lastMessageAt: true,
-          },
-        })
-      : null;
     const contactId = leadRow?.contactId ?? conversationRow?.contactId ?? eventContactId;
     const contactRow = contactId
       ? await tx.contact.findFirst({
@@ -104,6 +105,18 @@ export class WorkflowContextBuilder {
           },
         })
       : null;
+    const hasInboundReply = conversationRow
+      ? (await tx.message.count({
+          where: {
+            tenantId,
+            conversationId: conversationRow.id,
+            direction: 'INBOUND',
+            ...(typeof event.occurredAt === 'string'
+              ? { createdAt: { gte: new Date(event.occurredAt) } }
+              : {}),
+          },
+        })) > 0
+      : false;
     const previousSteps = await tx.workflowStepRun.findMany({
       where: {
         tenantId,
@@ -165,6 +178,7 @@ export class WorkflowContextBuilder {
               contactId: conversationRow.contactId,
               channel: conversationRow.channel,
               status: conversationRow.status,
+              hasInboundReply,
               assignedUserId: conversationRow.assignedUserId,
               lastMessageAt: conversationRow.lastMessageAt?.toISOString() ?? null,
             },

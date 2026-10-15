@@ -168,6 +168,9 @@ jobs:
       - name: Integration tests
         run: pnpm run test:integration
 
+      - name: Missed call to booking release gate
+        run: pnpm run test:e2e
+
   # -------------------------------------------------------------------------
   security:
     name: Security checks
@@ -229,3 +232,23 @@ jobs:
       # deploy time; this check surfaces it during review instead.
       - name: Assert every tenant-scoped model is covered by an RLS policy
         run: node scripts/check-rls-coverage.mjs
+
+  infrastructure:
+    name: Terraform and deployment preparation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+      - name: Terraform format
+        run: terraform -chdir=infra/terraform fmt -check -recursive
+      - name: Terraform initialization without remote state
+        run: terraform -chdir=infra/terraform init -backend=false -lockfile=readonly
+      - name: Terraform validation
+        run: terraform -chdir=infra/terraform validate
+      - name: Deployment script checks
+        run: |
+          bash -n infra/scripts/deploy.sh
+          python3 -m unittest discover -s infra/scripts -p 'test_*.py'

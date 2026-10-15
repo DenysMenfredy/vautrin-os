@@ -14,6 +14,7 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
  * message action are the first feature processors. Agent execution follows.
  */
 @Module({
+  providers: [WorkerHeartbeat],
   imports: [
     EnvironmentModule,
     DatabaseModule,
@@ -25,3 +26,5 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
   ],
 })
 export class AppModule {}
+
+import { WorkerHeartbeat } from './worker-heartbeat.service.js';

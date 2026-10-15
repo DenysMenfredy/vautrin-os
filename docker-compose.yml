@@ -70,6 +70,13 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
+      LOCAL_SECRET_DIRECTORY: /var/lib/vautrin/secrets
+      LOCAL_SECRET_ENCRYPTION_KEY: ${LOCAL_SECRET_ENCRYPTION_KEY:-}
+    volumes:
+      - ${LOCAL_SECRET_HOST_DIRECTORY:-./.local-secrets}:/var/lib/vautrin/secrets
     ports:
       - '${API_HOST_PORT:-3000}:3000'
     depends_on:
@@ -95,6 +102,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LOCAL_SECRET_DIRECTORY: /var/lib/vautrin/secrets
+      LOCAL_SECRET_ENCRYPTION_KEY: ${LOCAL_SECRET_ENCRYPTION_KEY:-}
+    volumes:
+      - ${LOCAL_SECRET_HOST_DIRECTORY:-./.local-secrets}:/var/lib/vautrin/secrets:ro
     depends_on:
       postgres:
         condition: service_healthy

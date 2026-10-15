@@ -1,5 +1,5 @@
 import { getQueueToken } from '@nestjs/bullmq';
-import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
+import { Inject, Injectable, Logger, type OnModuleDestroy, Optional } from '@nestjs/common';
 import { parseWorkflowFailurePolicy, parseWorkflowRetryPolicy } from '@vautrin/contracts';
 import {
   Prisma,
@@ -58,6 +58,7 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
   constructor(
     private readonly database: DatabaseService,
     @Inject(getQueueToken(QUEUE.WORKFLOW)) private readonly queue: Queue<WorkflowRunJob>,
+    @Optional() @Inject(getQueueToken(QUEUE.AI)) private readonly ai?: Queue<WorkflowRunJob>,
   ) {}
 
   start(): void {
@@ -143,7 +144,8 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
               }
 
               const jobId = workflowRunJobId(job);
-              const queuedJob = await this.queue.getJob(jobId);
+              const target = job.action === 'execute' ? (this.ai ?? this.queue) : this.queue;
+              const queuedJob = await target.getJob(jobId);
               if (queuedJob) {
                 const state = await queuedJob.getState();
                 if (state === 'failed') {
@@ -166,9 +168,12 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
               }
 
               const retryDelay = job.action === 'start' ? 0 : Math.max(0, row.delay_ms);
-              await this.queue.add(WORKFLOW_RUN_JOB, job, {
+              await target.add(WORKFLOW_RUN_JOB, job, {
                 jobId,
                 ...(retryDelay > 0 ? { delay: retryDelay } : {}),
+                ...(job.action === 'execute'
+                  ? { attempts: 3, backoff: { type: 'exponential', delay: 60_000 } }
+                  : {}),
               });
               enqueued++;
             }
@@ -202,6 +207,18 @@ export class WorkflowRunScheduler implements OnModuleDestroy {
       };
     }
     if (row.status === WorkflowRunStatus.WAITING && row.current_step_id && row.scheduled_for) {
+      if (
+        row.workflow_step_type === 'CALL_AGENT' ||
+        row.workflow_step_type === 'CREATE_APPOINTMENT'
+      ) {
+        return {
+          tenantId,
+          runId: row.id,
+          action: 'execute',
+          stepId: row.current_step_id,
+          ...(row.correlation_id ? { correlationId: row.correlation_id } : {}),
+        };
+      }
       if (row.workflow_step_type === 'WAIT') {
         return {
           tenantId,

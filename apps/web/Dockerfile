@@ -22,10 +22,13 @@ WORKDIR /repo
 FROM base AS build
 
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
+COPY packages/auth/package.json packages/auth/
+COPY patches ./patches
 COPY packages/config/package.json    packages/config/
 COPY packages/contracts/package.json packages/contracts/
 COPY packages/database/package.json  packages/database/
 COPY packages/integrations/package.json packages/integrations/
+COPY packages/revenue/package.json packages/revenue/
 COPY packages/queues/package.json    packages/queues/
 COPY packages/testing/package.json   packages/testing/
 COPY apps/api/package.json           apps/api/

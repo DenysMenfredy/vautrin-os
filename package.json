@@ -2,7 +2,7 @@
   "name": "vautrin-os",
   "version": "0.1.0",
   "private": true,
-  "description": "Vautrin OS \u2014 multi-tenant SaaS platform for local businesses",
+  "description": "Vautrin OS — multi-tenant SaaS platform for local businesses",
   "packageManager": "pnpm@9.15.4",
   "engines": {
     "node": ">=22.19.0",
@@ -30,7 +30,8 @@
     "db:generate": "pnpm --filter @vautrin/database generate",
     "db:migrate": "pnpm --filter @vautrin/database migrate:dev",
     "db:deploy": "pnpm --filter @vautrin/database migrate:deploy",
-    "db:studio": "pnpm --filter @vautrin/database studio"
+    "db:studio": "pnpm --filter @vautrin/database studio",
+    "test:e2e": "turbo run test:e2e"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
@@ -44,7 +45,14 @@
   },
   "pnpm": {
     "overrides": {
-      "deepmerge-ts@<8.0.0": ">=8.0.2"
+      "deepmerge-ts@<8.0.0": ">=8.0.2",
+      "simple-git@<4.0.1": "4.0.1",
+      "shell-quote@<1.11.0": "1.11.0",
+      "source-map-js@<1.2.2": "1.2.2",
+      "@simple-git/argv-parser@<2.0.1": "2.0.1"
+    },
+    "patchedDependencies": {
+      "@nuxt/devtools@3.4.2": "patches/@nuxt__devtools@3.4.2.patch"
     }
   }
 }

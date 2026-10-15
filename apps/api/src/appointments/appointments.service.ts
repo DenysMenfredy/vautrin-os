@@ -148,6 +148,8 @@ function mapAppointment(row: AppointmentRow): AppointmentResponse {
 
 function bookingHttpError(error: unknown): unknown {
   if (error instanceof BookingDomainError) {
+    if (error.code === 'BOOKING_RESOURCE_NOT_FOUND')
+      return new NotFoundException('Booking resource not found.');
     const status =
       error.code === 'BOOKING_CONFLICT' || error.code === 'BOOKING_SLOT_UNAVAILABLE'
         ? HttpStatus.CONFLICT

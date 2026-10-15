@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  IntegrationCredentialStore,
   MessagingProviderError,
   type TwilioCredentialResolver,
   type TwilioCredentials,
@@ -7,7 +8,6 @@ import {
 
 import { DatabaseService } from '../database/database.service.js';
 
-const SECRET_REF = /^env:(VAUTRIN_TWILIO_[A-Z0-9_]+)$/;
 const ACCOUNT_SID = /^AC[0-9a-f]{32}$/i;
 const KEY_SID = /^SK[0-9a-f]{32}$/i;
 const SERVICE_SID = /^MG[0-9a-f]{32}$/i;
@@ -28,16 +28,14 @@ export class WorkerTwilioCredentialResolver implements TwilioCredentialResolver 
           status: { in: ['CONNECTED', 'HEALTHY', 'DEGRADED'] },
         },
       });
-      const match = integration?.credentialsRef
-        ? SECRET_REF.exec(integration.credentialsRef)
-        : null;
-      const secretName = match?.[1];
-      const secret = secretName ? process.env[secretName] : undefined;
-      if (!integration || !secret) throw new MessagingProviderError('integration_unavailable');
-
+      if (!integration?.credentialsRef) throw new MessagingProviderError('integration_unavailable');
       let value: unknown;
       try {
-        value = JSON.parse(secret);
+        value = await new IntegrationCredentialStore().read(
+          tenantId,
+          'twilio',
+          integration.credentialsRef,
+        );
       } catch {
         throw new MessagingProviderError('integration_unavailable');
       }

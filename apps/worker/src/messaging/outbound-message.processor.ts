@@ -80,7 +80,7 @@ export class OutboundMessageProcessor extends WorkerHost {
     return this.database.withJobTenant(data, async (tx) => {
       const message = await tx.message.findFirst({
         where: { id: data.messageId, tenantId: data.tenantId },
-        include: { conversation: { select: { contactId: true, status: true } } },
+        include: { conversation: { select: { contactId: true, status: true, metadata: true } } },
       });
       if (!message) return null;
       if (message.status !== 'QUEUED') return null;
@@ -93,6 +93,32 @@ export class OutboundMessageProcessor extends WorkerHost {
       ) {
         await failQueuedMessage(tx, data.tenantId, message.id, 'invalid_message_configuration');
         return null;
+      }
+
+      const metadata = record(message.metadata);
+      const workflowRunId = metadata.workflowRunId;
+      if (typeof workflowRunId === 'string') {
+        if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(workflowRunId)) {
+          await failQueuedMessage(tx, data.tenantId, message.id, 'workflow_unavailable');
+          return null;
+        }
+        const workflow = await tx.$queryRaw<
+          { status: string }[]
+        >`SELECT status FROM public.workflow_runs WHERE tenant_id = ${data.tenantId}::uuid AND id = ${workflowRunId}::uuid FOR UPDATE`;
+        if (!workflow[0] || ['CANCELLED', 'FAILED'].includes(workflow[0].status)) {
+          await failQueuedMessage(tx, data.tenantId, message.id, 'workflow_cancelled');
+          return null;
+        }
+        if (
+          message.conversation.status === 'PENDING' &&
+          !(
+            metadata.handoffAcknowledgement === true &&
+            record(message.conversation.metadata).agentRunId === message.agentRunId
+          )
+        ) {
+          await failQueuedMessage(tx, data.tenantId, message.id, 'conversation_handed_off');
+          return null;
+        }
       }
 
       const contact = await tx.contact.findFirst({

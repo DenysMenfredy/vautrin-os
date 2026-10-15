@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 
-import { Logger } from '@nestjs/common';
+import { ConsoleLogger, Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { Environment } from '@vautrin/config';
 import { ALL_QUEUES } from '@vautrin/queues';
@@ -14,6 +14,7 @@ async function bootstrap(): Promise<void> {
   // and exposes no port (SDD-02 §3). Processors arrive with feature modules.
   const app = await NestFactory.createApplicationContext(AppModule, { bufferLogs: true });
   const environment = app.get<Environment>(ENVIRONMENT);
+  app.useLogger(new ConsoleLogger({ json: true }));
   const logger = new Logger('Bootstrap');
 
   // Release the logs buffered during module initialisation.

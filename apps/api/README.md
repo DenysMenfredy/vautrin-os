@@ -283,3 +283,14 @@ and closes the database pool during a rolling deploy.
 
 Estimate, Knowledge, integration self-service management, Analytics, and structured JSON logging with correlation IDs
 (VOS-120) remain future work. The API currently uses Nest's default logger.
+
+## V0.3 revenue and operations APIs
+
+OpenAPI includes tenant-authenticated `POST /api/templates/remodeling`,
+`POST /api/intake/missed-calls`, `/api/operations/summary`, paginated
+`/api/operations/runs`, run detail/cancellation and safe `/api/integrations`
+list/disconnect/Google consent. Capabilities derive from authenticated membership.
+The Google callback alone is public and verifies one-time state, PKCE and browser
+binding, then rechecks membership before committing the immutable credential
+reference. Operator-only Twilio provisioning uses `configure:twilio` with credentials
+supplied through an environment name. See `../../docs/v0.3-local-setup.md`.

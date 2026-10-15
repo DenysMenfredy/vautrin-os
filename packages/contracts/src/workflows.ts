@@ -307,6 +307,7 @@ function validateConditionField(
     ],
     contact: ['id', 'company', 'tags', 'createdAt', 'updatedAt'],
     conversation: [
+      'hasInboundReply',
       'id',
       'leadId',
       'contactId',

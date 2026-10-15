@@ -398,5 +398,6 @@ useHead({ title: 'Settings' });
         </section>
       </div>
     </div>
+    <RevenueSetup v-if="can('business.manage') || can('integration.manage')" @installed="load" />
   </div>
 </template>

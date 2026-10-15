@@ -21,6 +21,23 @@ export function parseWaitDuration(value: unknown): number {
 
 export function parseWaitStepDuration(config: unknown): number {
   if (
+    config &&
+    typeof config === 'object' &&
+    !Array.isArray(config) &&
+    Object.keys(config).length === 1 &&
+    'durationMs' in config
+  ) {
+    const value = config.durationMs;
+    if (
+      typeof value !== 'number' ||
+      !Number.isSafeInteger(value) ||
+      value < 1 ||
+      value > 604_800_000
+    )
+      throw new Error('durationMs must be an integer from 1 to 604800000.');
+    return value;
+  }
+  if (
     typeof config !== 'object' ||
     config === null ||
     Array.isArray(config) ||

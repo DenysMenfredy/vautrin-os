@@ -22,7 +22,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "ioredis": "^6.0.0"
+    "ioredis": "^6.0.0",
+    "@vautrin/config": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",

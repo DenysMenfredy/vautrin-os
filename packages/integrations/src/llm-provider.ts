@@ -1,5 +1,7 @@
 /** Provider-neutral model input; no vendor SDK types cross this boundary. */
 export interface LLMRequest {
+  /** Opaque, in-memory continuation returned by the same provider. Never persisted as business state. */
+  readonly continuation?: string;
   readonly model: string;
   readonly messages: readonly LLMMessage[];
   readonly maxOutputTokens?: number;
@@ -12,6 +14,7 @@ export interface LLMMessage {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
   readonly content: string;
   readonly toolCallId?: string;
+  readonly toolCalls?: readonly LLMToolCall[];
 }
 
 /** JSON Schema is data only. It is never evaluated or compiled as code. */
@@ -35,6 +38,7 @@ export interface LLMUsage {
 }
 
 export interface LLMResponse {
+  readonly continuation?: string;
   readonly provider: string;
   readonly model: string;
   readonly content: string | null;

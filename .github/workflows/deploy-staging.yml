@@ -1,0 +1,58 @@
+name: Deploy prepared staging infrastructure
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Commit SHA to deploy from this branch
+        required: true
+      promote_only:
+        description: Promote an existing release for rollback
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+      GCP_REGION: ${{ vars.GCP_REGION }}
+      GCP_ZONE: ${{ vars.GCP_ZONE }}
+      DEPLOY_PREFIX: ${{ vars.DEPLOY_PREFIX }}
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY }}
+      FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+      APPLICATION_ORIGIN: ${{ vars.APPLICATION_ORIGIN }}
+      DEPLOY_SHA: ${{ inputs.release_sha }}
+      PROMOTE_ONLY: ${{ inputs.promote_only && '1' || '0' }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Verify the release belongs to the selected branch
+        run: |
+          [[ "$DEPLOY_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+          git merge-base --is-ancestor "$DEPLOY_SHA" HEAD
+          git checkout --detach "$DEPLOY_SHA"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+      - uses: google-github-actions/setup-gcloud@v3
+      - run: pnpm install --frozen-lockfile
+      - name: Deploy immutable images and static artifact
+        run: bash infra/scripts/deploy.sh

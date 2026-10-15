@@ -44,6 +44,7 @@ export type WorkflowRunJob = TenantQueueJob &
   (
     | { readonly runId: string; readonly action: 'start' }
     | { readonly runId: string; readonly action: 'wake'; readonly stepId: string }
+    | { readonly runId: string; readonly action: 'execute'; readonly stepId: string }
     | {
         readonly runId: string;
         readonly action: 'retry';
@@ -59,9 +60,9 @@ export function sendMessageJobId(messageId: string): string {
 
 export function workflowRunJobId(job: WorkflowRunJob): string {
   if (!isUuid(job.runId)) throw new Error('runId must be a UUID.');
-  if (job.action === 'wake') {
+  if (job.action === 'wake' || job.action === 'execute') {
     if (!isStepId(job.stepId)) throw new Error('stepId is invalid.');
-    return `workflow-${job.runId}-wake-${job.stepId}`;
+    return `workflow-${job.runId}-${job.action}-${job.stepId}`;
   }
   if (job.action === 'retry') {
     if (!isStepId(job.stepId)) throw new Error('stepId is invalid.');
@@ -78,7 +79,7 @@ export function assertWorkflowRunJob(value: unknown): asserts value is WorkflowR
   if (!isRecord(value) || !isUuid(value.tenantId) || !isUuid(value.runId)) {
     throw new Error('A workflow run job requires tenantId and runId UUIDs.');
   }
-  if (value.action === 'wake') {
+  if (value.action === 'wake' || value.action === 'execute') {
     if (!isStepId(value.stepId)) throw new Error('A workflow wake job requires a valid stepId.');
   } else if (value.action === 'retry') {
     if (!isStepId(value.stepId)) throw new Error('A workflow retry job requires a valid stepId.');

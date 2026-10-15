@@ -3,6 +3,16 @@ import { LEAD_STATUSES, type LeadStatus } from './leads.js';
 /** VOS-080: the initial, versioned durable event payloads. */
 export type DomainEventV1 =
   | {
+      readonly name: 'call.missed';
+      readonly version: 1;
+      readonly payload: {
+        readonly callId: string;
+        readonly contactId: string;
+        readonly leadId: string;
+        readonly conversationId: string;
+      };
+    }
+  | {
       readonly name: 'lead.created';
       readonly version: 1;
       readonly payload: { readonly leadId: string; readonly contactId: string };
@@ -98,6 +108,23 @@ export function parseDomainEvent(value: unknown): DomainEventV1 {
     throw new Error('Unsupported event schema version or payload.');
   }
   const payload = value.payload;
+  if (
+    value.name === 'call.missed' &&
+    isUuid(payload.callId) &&
+    isUuid(payload.contactId) &&
+    isUuid(payload.leadId) &&
+    isUuid(payload.conversationId)
+  )
+    return {
+      name: 'call.missed',
+      version: 1,
+      payload: {
+        callId: payload.callId,
+        contactId: payload.contactId,
+        leadId: payload.leadId,
+        conversationId: payload.conversationId,
+      },
+    };
   if (value.name === 'lead.created' && isUuid(payload.leadId) && isUuid(payload.contactId)) {
     return leadCreatedEvent(payload.leadId, payload.contactId);
   }

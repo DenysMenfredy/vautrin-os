@@ -35,3 +35,15 @@ pnpm-debug.log*
 !.vscode/extensions.json
 
 .zip
+.local-secrets/
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
+!*.tfvars.example
+
+# Ephemeral GitHub workload identity credentials
+gha-creds-*.json
+
+# Offline deployment script bytecode
+__pycache__/

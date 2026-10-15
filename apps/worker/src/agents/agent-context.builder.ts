@@ -50,6 +50,7 @@ export interface AgentBusinessContext {
     readonly title: string | null;
     readonly estimatedValue: number | null;
     readonly version: number;
+    readonly qualification: unknown;
   };
   readonly contact?: {
     readonly id: string;
@@ -61,6 +62,7 @@ export interface AgentBusinessContext {
     readonly channel: string;
     readonly status: string;
     readonly messages: readonly {
+      readonly id: string;
       readonly direction: string;
       readonly body: string;
       readonly createdAt: string;
@@ -72,6 +74,7 @@ export class AgentContextBuildError extends Error {
   constructor(
     readonly code:
       | 'business_profile_missing'
+      | 'business_context_limit'
       | 'conversation_not_found'
       | 'lead_not_found'
       | 'context_relationship_mismatch',
@@ -131,6 +134,7 @@ export class AgentContextBuilder {
             title: true,
             estimatedValue: true,
             version: true,
+            qualification: true,
           },
         })
       : null;
@@ -155,23 +159,26 @@ export class AgentContextBuilder {
           where: { tenantId, conversationId: conversation.id },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           take: CONVERSATION_MESSAGE_LIMIT,
-          select: { direction: true, body: true, createdAt: true },
+          select: { id: true, direction: true, body: true, createdAt: true },
         })
       : [];
     const [services, serviceAreas, locations] = await Promise.all([
       tx.service.findMany({
         where: { tenantId, active: true },
         orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        take: 101,
         select: { id: true, key: true, name: true, description: true, metadata: true },
       }),
       tx.serviceArea.findMany({
         where: { tenantId, active: true },
         orderBy: [{ type: 'asc' }, { value: 'asc' }],
+        take: 1001,
         select: { type: true, value: true, configuration: true },
       }),
       tx.location.findMany({
         where: { tenantId, deletedAt: null },
         orderBy: [{ isPrimary: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+        take: 21,
         select: {
           id: true,
           name: true,
@@ -184,6 +191,8 @@ export class AgentContextBuilder {
       }),
     ]);
 
+    if (services.length > 100 || serviceAreas.length > 1000 || locations.length > 20)
+      throw new AgentContextBuildError('business_context_limit');
     return {
       tenantId,
       business,
@@ -199,6 +208,7 @@ export class AgentContextBuilder {
               title: lead.title,
               estimatedValue: lead.estimatedValue ? Number(lead.estimatedValue.toString()) : null,
               version: lead.version,
+              qualification: lead.qualification,
             },
           }
         : {}),
@@ -212,6 +222,7 @@ export class AgentContextBuilder {
               channel: conversation.channel,
               status: conversation.status,
               messages: messages.reverse().map((message) => ({
+                id: message.id,
                 direction: message.direction,
                 body: message.body.slice(0, MESSAGE_BODY_LIMIT),
                 createdAt: message.createdAt.toISOString(),

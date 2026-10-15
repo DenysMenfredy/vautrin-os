@@ -1,0 +1,52 @@
+#!/bin/bash
+set -euo pipefail
+# The VM has no external address; NAT permits provider traffic. Never enable xtrace.
+apt-get update -qq
+apt-get install -y -qq docker.io curl python3
+systemctl enable --now docker
+install -d -m 0700 /run/vautrin
+registry_host=$(echo '${image}' | cut -d/ -f1)
+trap 'rm -f /run/vautrin/environment /run/vautrin/secret-response.json; docker logout "$registry_host" >/dev/null 2>&1 || true' EXIT
+runtime_token=$(curl -fsS -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')
+curl -fsS -H "Authorization: Bearer $runtime_token" 'https://secretmanager.googleapis.com/v1/${secret_resource}/versions/latest:access' -o /run/vautrin/secret-response.json
+python3 - <<'PY'
+import base64,json,os
+with open('/run/vautrin/secret-response.json') as source:
+    payload = json.loads(base64.b64decode(json.load(source)['payload']['data']))
+allowed = {'NODE_ENV','DATABASE_URL','DATABASE_MIGRATION_URL','REDIS_URL','REDIS_TLS_CA_BASE64','JWT_SECRET','TRUSTED_ORIGINS','TRUST_PROXY','API_PORT','API_GLOBAL_PREFIX','LOG_LEVEL','EMBEDDING_DIMENSIONS','OPENAI_API_KEY','GOOGLE_OAUTH_CLIENT_ID','GOOGLE_OAUTH_CLIENT_SECRET','GOOGLE_OAUTH_REDIRECT_URI','GCP_PROJECT_ID'}
+with open('/run/vautrin/environment','w') as target:
+    os.chmod('/run/vautrin/environment',0o600)
+    for key,value in payload.items():
+        if key not in allowed or not isinstance(value,str) or '\n' in value or '\r' in value:
+            raise RuntimeError('Invalid runtime environment entry')
+        target.write(key+'='+value+'\n')
+os.remove('/run/vautrin/secret-response.json')
+PY
+printf '%s' "$runtime_token" | docker login -u oauth2accesstoken --password-stdin "$registry_host" >/dev/null
+docker pull '${image}'
+if [ '${role}' = migrator ]; then
+  migration_status=success
+  docker run --rm --env-file /run/vautrin/environment '${image}' || migration_status=failed
+  curl -fsS -X PUT -H 'Metadata-Flavor: Google' --data "$migration_status" http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/vautrin/migration-status
+  exit 0
+fi
+# Keep an existing container until the replacement image has been pulled.
+docker stop --time 60 vautrin-${role} 2>/dev/null || true
+docker rm vautrin-${role} 2>/dev/null || true
+if [ '${role}' = api ]; then
+  docker run -d --name vautrin-api --restart unless-stopped --init --log-driver gcplogs --log-opt gcp-project='${project}' --env-file /run/vautrin/environment -p 3000:3000 '${image}'
+else
+  docker run -d --name vautrin-worker --restart unless-stopped --init --log-driver gcplogs --log-opt gcp-project='${project}' --env-file /run/vautrin/environment '${image}'
+fi
+docker logout "$registry_host" >/dev/null
+rm -f /run/vautrin/environment
+
+for attempt in {1..30}; do
+  health=$(docker inspect --format '{{.State.Health.Status}}' vautrin-${role} 2>/dev/null || true)
+  if [ "$health" = healthy ]; then
+    curl -fsS -X PUT -H 'Metadata-Flavor: Google' --data '${image}' http://metadata.google.internal/computeMetadata/v1/instance/guest-attributes/vautrin/release-${role}
+    exit 0
+  fi
+  sleep 10
+done
+exit 1

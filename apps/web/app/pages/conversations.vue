@@ -195,6 +195,9 @@ useHead({ title: 'Conversations' });
 </script>
 
 <template>
+  <p v-if="selected?.handoff" class="notice" role="status">
+    Human follow-up requested: {{ humanize(selected.handoff.reason) }}.
+  </p>
   <div>
     <AppPageHeader title="Conversations" description="Customer messages and confirmed delivery states." eyebrow="Inbox">
       <button class="button button--secondary" type="button" @click="loadQueue">

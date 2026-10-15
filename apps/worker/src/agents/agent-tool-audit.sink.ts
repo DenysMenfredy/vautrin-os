@@ -1,12 +1,29 @@
 import { Injectable } from '@nestjs/common';
-import type { ToolExecutionStatus, ToolSideEffect } from '@vautrin/database';
+import { Prisma, type ToolExecutionStatus, type ToolSideEffect } from '@vautrin/database';
 
 import { DatabaseService } from '../database/database.service.js';
-import type { AgentToolAuditEvent, AgentToolAuditSink } from './tool-registry.js';
+import type { AgentToolAuditEvent, AgentToolAuditSink, AgentToolResult } from './tool-registry.js';
 
 @Injectable()
 export class DatabaseAgentToolAuditSink implements AgentToolAuditSink {
   constructor(private readonly database: DatabaseService) {}
+
+  replay(event: AgentToolAuditEvent): Promise<AgentToolResult | undefined> {
+    const idempotencyKey = event.idempotencyKey;
+    if (!idempotencyKey) return Promise.resolve(undefined);
+    return this.database.withJobTenant({ tenantId: event.tenantId }, async (tx) => {
+      const row = await tx.toolExecution.findFirst({
+        where: {
+          tenantId: event.tenantId,
+          idempotencyKey,
+          agentRunId: event.agentRunId,
+          toolName: event.toolName,
+        },
+      });
+      if (row?.status === 'SUCCEEDED') return { status: 'SUCCEEDED', output: row.output };
+      return undefined;
+    });
+  }
 
   claim(event: AgentToolAuditEvent): Promise<boolean> {
     const idempotencyKey = event.idempotencyKey;
@@ -62,13 +79,46 @@ export class DatabaseAgentToolAuditSink implements AgentToolAuditSink {
               authorized: event.authorized,
               approvalRequired: event.approvalRequired,
               latencyMs: boundedLatency(event.latencyMs),
+              ...(event.output === undefined
+                ? {}
+                : { output: event.output as Prisma.InputJsonValue }),
+            },
+          });
+          await tx.auditLog.create({
+            data: {
+              tenantId: event.tenantId,
+              actorType: 'AGENT',
+              actorId: event.agentRunId,
+              action: 'agent.tool.executed',
+              resourceType: 'tool_execution',
+              resourceId: existing.id,
+              metadata: {
+                toolName: event.toolName,
+                status: event.status,
+                authorized: event.authorized,
+              },
             },
           });
           return;
         }
       }
 
-      await tx.toolExecution.createMany({ data: [toDatabaseData(event)], skipDuplicates: true });
+      const created = await tx.toolExecution.create({ data: toDatabaseData(event) });
+      await tx.auditLog.create({
+        data: {
+          tenantId: event.tenantId,
+          actorType: 'AGENT',
+          actorId: event.agentRunId,
+          action: 'agent.tool.executed',
+          resourceType: 'tool_execution',
+          resourceId: created.id,
+          metadata: {
+            toolName: event.toolName,
+            status: event.status,
+            authorized: event.authorized,
+          },
+        },
+      });
     });
   }
 }
@@ -81,8 +131,8 @@ function toDatabaseData(event: AgentToolAuditEvent) {
     permission: event.permission || null,
     sideEffect: toDatabaseSideEffect(event.sideEffect),
     status: toDatabaseStatus(event.status),
-    input: {},
-    output: {},
+    input: (event.input ?? {}) as Prisma.InputJsonValue,
+    output: (event.output ?? {}) as Prisma.InputJsonValue,
     error: event.errorCode ?? null,
     authorized: event.authorized,
     approvalRequired: event.approvalRequired,
