@@ -67,7 +67,9 @@ export class IntegrationCredentialStore implements CredentialStore {
             'utf8',
           ),
         ) as { iv: string; tag: string; ciphertext: string };
-        const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'));
+        const decipher = createDecipheriv('aes-256-gcm', key, Buffer.from(envelope.iv, 'base64'), {
+          authTagLength: 16,
+        });
         decipher.setAAD(Buffer.from(reference));
         decipher.setAuthTag(Buffer.from(envelope.tag, 'base64'));
         raw = Buffer.concat([
@@ -131,7 +133,7 @@ export class IntegrationCredentialStore implements CredentialStore {
     const version = randomBytes(16).toString('hex');
     const reference = `local:${tenantId}:${provider}:${version}`;
     const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const cipher = createCipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
     cipher.setAAD(Buffer.from(reference));
     const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
     await mkdir(directory, { recursive: true, mode: 0o700 });

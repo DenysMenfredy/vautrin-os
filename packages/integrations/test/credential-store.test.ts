@@ -1,9 +1,9 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { IntegrationCredentialStore } from '../src/credential-store.js';
+import { CredentialStoreError, IntegrationCredentialStore } from '../src/credential-store.js';
 
 describe('tenant-bound encrypted local credentials', () => {
   it('round-trips without plaintext storage and rejects another tenant, provider, or encryption key', async () => {
@@ -48,6 +48,39 @@ describe('tenant-bound encrypted local credentials', () => {
           LOCAL_SECRET_ENCRYPTION_KEY: randomBytes(32).toString('hex'),
         }).read(tenantId, 'google_calendar', reference),
       ).rejects.toThrow('integration_unavailable');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+  it.each([0, 4, 8, 12, 13, 14, 15, 17])('rejects a %i-byte authentication tag', async (length) => {
+    const directory = await mkdtemp(join(tmpdir(), 'vautrin-secrets-tag-'));
+    try {
+      const tenantId = randomUUID();
+      const store = new IntegrationCredentialStore({
+        NODE_ENV: 'development',
+        LOCAL_SECRET_DIRECTORY: directory,
+        LOCAL_SECRET_ENCRYPTION_KEY: randomBytes(32).toString('hex'),
+      });
+      const reference = await store.write(tenantId, 'google_calendar', {
+        refreshToken: 'synthetic-sensitive-token',
+      });
+      const file = join(directory, `${tenantId}-google_calendar-${reference.split(':')[3]}.json`);
+      const envelope = JSON.parse(await readFile(file, 'utf8')) as {
+        iv: string;
+        tag: string;
+        ciphertext: string;
+      };
+      const tag = Buffer.from(envelope.tag, 'base64');
+      expect(tag.length).toBe(16);
+      envelope.tag = (
+        length < tag.length
+          ? tag.subarray(0, length)
+          : Buffer.concat([tag, Buffer.alloc(length - tag.length)])
+      ).toString('base64');
+      await writeFile(file, JSON.stringify(envelope));
+      await expect(store.read(tenantId, 'google_calendar', reference)).rejects.toBeInstanceOf(
+        CredentialStoreError,
+      );
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
