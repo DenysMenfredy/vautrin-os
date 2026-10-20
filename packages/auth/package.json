@@ -29,7 +29,7 @@
     "@types/node": "^26.6.2",
     "@vautrin/testing": "workspace:*",
     "typescript": "^5.7.2",
-    "vite": "^8.3.0",
+    "vite": "^8.3.3",
     "vitest": "4.1.11"
   }
 }
