@@ -24,7 +24,7 @@
     "@vautrin/testing": "workspace:*",
     "@vue/test-utils": "^2.5.1",
     "dotenv-cli": "^8.0.0",
-    "happy-dom": "^20.14.5",
+    "happy-dom": "^21.0.4",
     "typescript": "^5.7.2",
     "vite": "^8.3.3",
     "vitest": "4.1.11",
