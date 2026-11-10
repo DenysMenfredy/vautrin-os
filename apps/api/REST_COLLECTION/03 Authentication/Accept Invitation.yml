@@ -18,11 +18,16 @@ runtime:
   scripts:
     - type: before-request
       code: |-
-        const token = bru.getVar('invitationToken') || bru.getEnvVar('invitationToken');
+        // Require an explicitly selected invitation token. Bruno runtime
+        // variables may retain a revoked token from an earlier invitation.
+        const token = bru.getEnvVar('acceptInvitationToken');
         const password = bru.getEnvVar('invitationPassword') || bru.getEnvVar('password');
         if (!token) {
-          bru.runner.skipRequest();
+          throw new Error('Set the current invitation in acceptInvitationToken in the selected Bruno environment.');
         } else {
+          if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+            throw new Error('acceptInvitationToken must be the 43-character token returned by the latest invitation.');
+          }
           if (!password) {
             throw new Error('Set password or invitationPassword in the selected Bruno environment before accepting an invitation.');
           }

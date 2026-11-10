@@ -11,7 +11,7 @@ variables:
     name: password
     description: ""
   - secret: true
-    name: invitationToken
+    name: acceptInvitationToken
     description: One-time invitation token; clear it after acceptance.
   - secret: true
     name: invitationPassword

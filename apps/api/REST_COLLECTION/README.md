@@ -19,14 +19,22 @@ For an API running on the host, build it first and use
 `pnpm --filter @vautrin/api onboard:tenant --slug my-business --name "My Business" --owner-email owner@example.com`.
 The command returns a one-time owner invitation token. Deliver it privately;
 never commit it. In Bruno's `Local API` environment, enter that token in the
-`invitationToken` secret field, enter the invited email in `email`, and choose
+`acceptInvitationToken` secret field, enter the invited email in `email`, and choose
 a password of 12–200 characters in the `password` secret field. Leave
 `invitationPassword` empty for this first-owner flow; it exists for separately
 testing invitation acceptance with a different account.
 
+The acceptance request reads only `acceptInvitationToken` from the selected
+environment; it does not use Bruno's runtime token variable. This prevents a
+revoked token saved earlier in the current Bruno session from being sent. Clear
+the environment field after acceptance; accepted or revoked tokens cannot be
+reused. The pre-request script builds the JSON body from these environment
+fields, so editing the request's visible body does not change the submitted
+token or password.
+
 1. Run **Authentication → Register (Accept Invitation)** once. It calls
    `POST /auth/invitations/accept` and should return `204`. Clear the
-   `invitationToken` field afterward; accepted tokens cannot be reused.
+   `acceptInvitationToken` field afterward; accepted tokens cannot be reused.
 2. Run **Authentication → Login**. It calls `POST /auth/login` with the Bruno
    environment credentials. The `200` response contains `accessToken`; the
    response script stores it as a Bruno runtime variable. Its pre-request
