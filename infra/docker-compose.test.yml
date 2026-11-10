@@ -6,6 +6,7 @@ services:
       POSTGRES_USER: vautrin
       POSTGRES_PASSWORD: vautrin_test_only
       POSTGRES_DB: vautrin_test
+      VAUTRIN_PLATFORM_PASSWORD: vautrin_platform_test_only
       VAUTRIN_ROLE_PASSWORD: vautrin_test_only
     ports: ['5545:5432']
     volumes:

@@ -18,6 +18,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}
       POSTGRES_DB: ${POSTGRES_DB:-vautrin}
       # Roles created by initdb scripts reuse this password in local dev only.
+      VAUTRIN_PLATFORM_PASSWORD: ${POSTGRES_PLATFORM_PASSWORD:-vautrin_platform_local_dev}
       VAUTRIN_ROLE_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:-vautrin_local_dev}
     ports:
       - '${POSTGRES_PORT:-5435}:5432'

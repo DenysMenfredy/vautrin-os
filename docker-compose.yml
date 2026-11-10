@@ -63,6 +63,9 @@ services:
       # The least-privileged role. RLS only constrains this one (ADR-005).
       DATABASE_URL: *database-url
       REDIS_URL: redis://redis:6379
+      DATABASE_PLATFORM_URL: ${DATABASE_PLATFORM_CONTAINER_URL:-postgresql://vautrin_platform_admin:${POSTGRES_PLATFORM_PASSWORD:-vautrin_platform_local_dev}@postgres:5432/${POSTGRES_DB:-vautrin}?schema=public}
+      ADMIN_BASE_URL: ${ADMIN_BASE_URL:-http://localhost:8081}
+      APPLICATION_BASE_URL: ${APPLICATION_BASE_URL:-http://localhost:8080}
       API_PORT: 1447
       API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:?TRUSTED_ORIGINS must be set}
@@ -133,6 +136,25 @@ services:
       PORT: 8080
     ports:
       - '${WEB_HOST_PORT:-8080}:8080'
+    depends_on:
+      api:
+        condition: service_healthy
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+    image: vautrin/admin:${VAUTRIN_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    init: true
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      NUXT_API_INTERNAL_BASE: http://api:1447/api/admin
+      NUXT_PUBLIC_API_BASE: /api/admin
+      NUXT_PUBLIC_APPLICATION_BASE_URL: ${APPLICATION_BASE_URL:-http://localhost:8080}
+      PORT: 8081
+    ports:
+      - '${ADMIN_HOST_PORT:-8081}:8081'
     depends_on:
       api:
         condition: service_healthy

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { AdminModule } from './admin/admin.module.js';
 import { AgentsModule } from './agents/agents.module.js';
 import { AppointmentsModule } from './appointments/appointments.module.js';
 import { AuditModule } from './audit/audit.module.js';
@@ -35,6 +36,7 @@ import { WorkflowsModule } from './workflows/workflows.module.js';
 @Module({
   imports: [
     EnvironmentModule,
+    AdminModule,
     DatabaseModule,
     AuditModule,
     AuthModule,

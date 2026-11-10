@@ -44,3 +44,10 @@ output "runtime_service_accounts" {
 }
 output "workload_identity_provider" { value = var.github_repository == "" ? null : google_iam_workload_identity_pool_provider.github[0].name }
 output "deployment_service_account" { value = var.github_repository == "" ? null : google_service_account.deployment[0].email }
+
+output "admin_origin" {
+  value = var.admin_domain == "" ? null : "https://${var.admin_domain}"
+}
+output "admin_frontend_bucket" {
+  value = var.admin_domain == "" ? null : google_storage_bucket.admin[0].name
+}

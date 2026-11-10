@@ -92,3 +92,13 @@ variable "github_owner_id" {
     error_message = "Supply the immutable GitHub owner ID when enabling federation."
   }
 }
+
+variable "admin_domain" {
+  description = "Separate platform-admin hostname; empty disables the admin frontend resources."
+  type        = string
+  default     = ""
+  validation {
+    condition     = var.admin_domain == "" || (can(regex("^[a-z0-9][a-z0-9.-]+[a-z0-9]$", var.admin_domain)) && var.admin_domain != var.domain)
+    error_message = "Use a separate admin hostname without a scheme or path."
+  }
+}

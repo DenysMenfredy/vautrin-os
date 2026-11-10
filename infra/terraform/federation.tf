@@ -61,3 +61,10 @@ resource "google_artifact_registry_repository_iam_member" "deploy" {
   role       = "roles/artifactregistry.writer"
   member     = "serviceAccount:${google_service_account.deployment[0].email}"
 }
+
+resource "google_storage_bucket_iam_member" "deploy_admin" {
+  count  = var.github_repository == "" || var.admin_domain == "" ? 0 : 1
+  bucket = google_storage_bucket.admin[0].name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.deployment[0].email}"
+}

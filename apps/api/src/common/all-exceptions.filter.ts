@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { PLATFORM_ERROR_CODES } from '@vautrin/contracts';
 import type { Request, Response } from 'express';
 
 /** The single error shape the API returns (AGENTS.md §8). */
@@ -62,7 +63,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
             : ((payload as { message?: string | string[] }).message ?? exception.message),
         path: request.originalUrl.split('?')[0] ?? request.path,
         timestamp: new Date().toISOString(),
-        ...(typeof code === 'string' && /^BOOKING_[A-Z_]+$/.test(code) ? { code } : {}),
+        ...(typeof code === 'string' &&
+        (/^BOOKING_[A-Z_]+$/.test(code) || PLATFORM_ERROR_CODES.some((known) => known === code))
+          ? { code }
+          : {}),
         ...(Array.isArray(missingFields) &&
         missingFields.every(
           (field) => typeof field === 'string' && /^(?:contact|lead)\.[a-zA-Z]+$/.test(field),

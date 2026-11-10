@@ -1,0 +1,35 @@
+{
+  "name": "@vautrin/admin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vautrin internal platform administration \u2014 SDD-13",
+  "scripts": {
+    "build": "nuxt build",
+    "build:static": "nuxt generate && node scripts/verify-static-output.mjs",
+    "dev": "dotenv -e ../../.env -- nuxt dev",
+    "start": "PORT=${PORT:-8081} node .output/server/index.mjs",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "lint": "biome check .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@vautrin/contracts": "workspace:*",
+    "nuxt": "^4.5.2",
+    "vue": "^3.5.43",
+    "vue-router": "^5.3.1",
+    "@vautrin/ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@nuxt/test-utils": "^4.3.2",
+    "@vautrin/testing": "workspace:*",
+    "@vue/test-utils": "^2.5.1",
+    "dotenv-cli": "^8.0.0",
+    "happy-dom": "^20.14.5",
+    "typescript": "^5.7.2",
+    "vite": "^8.3.0",
+    "vitest": "4.1.11",
+    "vue-tsc": "^3.3.11"
+  }
+}

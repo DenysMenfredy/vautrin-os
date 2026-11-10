@@ -39,6 +39,14 @@ release tests. See [local v0.3 setup](docs/v0.3-local-setup.md) and the
 artifacts are prepared; live provider smoke, staging/restore/rollback drills and
 unpatched dependency advisories remain release gates.
 
+The v0.4 internal platform admin console is a separate Nuxt app at
+`apps/admin`, served locally on port 8081 and backed by `/api/admin/*`. Its
+restricted database role, invitation flow, explicit first SUPER_ADMIN
+bootstrap, and prepared optional GCP admin host are documented in
+[`v0.4 admin setup`](docs/v0.4-admin-setup.md). First platform access is
+deliberately unassigned until an operator runs the bootstrap command for an
+existing invitation-accepted account.
+
 ## Source-review archives
 
 Do not ZIP the working directory: local `.env` files and credentials can be
@@ -93,6 +101,7 @@ The architecture is vertical-agnostic even though the first production template 
 - `docs/sdd/10-observability.md`
 - `docs/sdd/11-testing.md`
 - `docs/sdd/12-deployment.md`
+- `docs/sdd/13-platform-admin-console.md`
 
 ### ADR
 - `docs/adr/001-monorepo-strategy.md`
@@ -110,6 +119,8 @@ The architecture is vertical-agnostic even though the first production template 
 - `docs/adr/013-session-and-token-strategy.md`
 - `docs/adr/014-service-and-service-area-modeling.md`
 - `docs/adr/015-operator-controlled-onboarding.md`
+- `docs/adr/017-dedicated-platform-admin-control-plane.md`
+- `docs/adr/018-platform-authorization.md`
 
 ### Engineering agent guidance
 - `AGENTS.md`

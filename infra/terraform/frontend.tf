@@ -33,7 +33,7 @@ resource "google_compute_global_address" "frontend" {
 resource "google_compute_managed_ssl_certificate" "frontend" {
   name = "${local.prefix}-tls"
   managed {
-    domains = [var.domain]
+    domains = concat([var.domain], var.admin_domain == "" ? [] : [var.admin_domain])
   }
 }
 resource "google_compute_url_map" "frontend" {
@@ -42,6 +42,51 @@ resource "google_compute_url_map" "frontend" {
   host_rule {
     hosts        = [var.domain]
     path_matcher = "application"
+  }
+  dynamic "host_rule" {
+    for_each = var.admin_domain == "" ? [] : [var.admin_domain]
+    content {
+      hosts        = [host_rule.value]
+      path_matcher = "platform-admin"
+    }
+  }
+  dynamic "path_matcher" {
+    for_each = var.admin_domain == "" ? [] : [var.admin_domain]
+    content {
+      name            = "platform-admin"
+      default_service = google_compute_backend_bucket.admin[0].id
+      route_rules {
+        priority = 1
+        service  = google_compute_backend_service.api.id
+        match_rules { full_path_match = "/api/admin" }
+        match_rules { prefix_match = "/api/admin/" }
+      }
+      dynamic "route_rules" {
+        for_each = { for index, route in ["", "login", "dashboard", "users", "tenants", "audit"] : route => index }
+        content {
+          priority = 10 + route_rules.value
+          service  = google_compute_backend_bucket.admin[0].id
+          match_rules { full_path_match = route_rules.key == "" ? "/" : "/${route_rules.key}" }
+          match_rules { full_path_match = route_rules.key == "" ? "/index.html" : "/${route_rules.key}/" }
+          route_action {
+            url_rewrite { path_prefix_rewrite = route_rules.key == "" ? "/index.html" : "/${route_rules.key}/index.html" }
+          }
+        }
+      }
+      dynamic "route_rules" {
+        for_each = { users = 30, tenants = 31 }
+        content {
+          priority = route_rules.value
+          service  = google_compute_backend_bucket.admin[0].id
+          match_rules { path_template_match = "/${route_rules.key}/{id=*}" }
+          route_action {
+            url_rewrite {
+              path_template_rewrite = "/200.html"
+            }
+          }
+        }
+      }
+    }
   }
   path_matcher {
     name            = "application"

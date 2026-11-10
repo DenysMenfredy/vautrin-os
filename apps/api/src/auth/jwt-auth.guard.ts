@@ -9,21 +9,22 @@ import { Reflector } from '@nestjs/core';
 import { InvalidAccessTokenError, verifyAccessToken } from '@vautrin/auth';
 import type { Environment } from '@vautrin/config';
 import type { Request } from 'express';
-
 import { ENVIRONMENT } from '../config/environment.module.js';
+import { DatabaseService } from '../database/database.service.js';
 import type { AuthenticatedRequestContext } from './decorators/current-auth.decorator.js';
 import { IS_PUBLIC } from './decorators/public.decorator.js';
 
 /**
- * Verifies the access token on every request (ADR-013).
+ * Verifies the tenant access token and current account/membership state on
+ * every request (ADR-013 amended by the platform-admin control plane).
  *
  * Registered globally, so routes are authenticated unless they opt out with
  * @Public(). Deny-by-default matters more than the convenience: a
  * per-route guard is one you can forget to add, and forgetting fails open.
  *
- * Only the signature is checked — no database read. That is the trade ADR-013
- * makes: a revoked membership or a downgraded role stays valid for at most
- * the access-token lifetime.
+ * The token signature proves which identity and tenant were issued; live
+ * database checks make administrative disable, membership revocation, and
+ * tenant suspension take effect before the short-lived token expires.
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -31,6 +32,7 @@ export class JwtAuthGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
+    private readonly database: DatabaseService,
     @Inject(ENVIRONMENT) environment: Environment,
   ) {
     this.secret = new TextEncoder().encode(environment.JWT_SECRET);
@@ -54,6 +56,39 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const claims = await verifyAccessToken(token, this.secret);
+
+      // Administrative account and membership changes take effect immediately.
+      // This global identity read never supplies a tenant authorization decision.
+      // nosemgrep: semgrep.vautrin-unscoped-database-access
+      const user = await this.database.unscoped.user.findUnique({
+        where: { id: claims.sub },
+        select: { status: true, deletedAt: true },
+      });
+      if (user?.status !== 'ACTIVE' || user.deletedAt)
+        throw new UnauthorizedException('The account is no longer active.');
+      if (claims.tid) {
+        if (
+          !claims.role ||
+          !['OWNER', 'ADMIN', 'MANAGER', 'STAFF', 'READ_ONLY'].includes(claims.role)
+        )
+          throw new UnauthorizedException('Invalid tenant role.');
+        const tenantId = claims.tid;
+        const role = claims.role;
+        const membership = await this.database.withUser(claims.sub, (tx) =>
+          tx.tenantUser.findFirst({
+            where: {
+              userId: claims.sub,
+              tenantId,
+              role,
+              status: 'ACTIVE',
+              tenant: { status: 'ACTIVE', deletedAt: null },
+            },
+            select: { id: true },
+          }),
+        );
+        if (!membership)
+          throw new UnauthorizedException('The membership or tenant is no longer active.');
+      }
 
       request.auth = {
         userId: claims.sub,

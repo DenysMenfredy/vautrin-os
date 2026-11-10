@@ -46,6 +46,7 @@ datasource db {
 enum TenantStatus {
   ACTIVE
   SUSPENDED
+  ARCHIVED
   PENDING_DELETION
 
   @@map("tenant_status")
@@ -57,6 +58,21 @@ enum UserStatus {
   DISABLED
 
   @@map("user_status")
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  OPERATOR
+  SUPPORT_READ_ONLY
+
+  @@map("platform_role")
+}
+
+enum PlatformAccessStatus {
+  ACTIVE
+  SUSPENDED
+
+  @@map("platform_access_status")
 }
 
 /// ADR-011 §Decision — initial roles.
@@ -357,6 +373,9 @@ model Tenant {
   /// SDD-05 §8 — deletion is a lifecycle operation, not a hard DELETE.
   deletedAt DateTime?    @map("deleted_at") @db.Timestamptz(6)
 
+  @@index([createdAt, id])
+  @@index([status, createdAt])
+
   members                TenantUser[]
   invitations            TenantInvitation[]
   businessProfile        BusinessProfile?
@@ -405,6 +424,10 @@ model User {
   createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
   deletedAt    DateTime?  @map("deleted_at") @db.Timestamptz(6)
+  disabledAt   DateTime?  @map("disabled_at") @db.Timestamptz(6)
+
+  platformAccess PlatformAccess?
+  platformSessions PlatformSession[]
 
   memberships          TenantUser[]
   refreshTokens        RefreshToken[]
@@ -412,7 +435,65 @@ model User {
   assignedConversations Conversation[]   @relation("ConversationAssignee")
   assignedAppointments Appointment[]     @relation("AppointmentAssignee")
 
+  @@index([createdAt, id])
+  @@index([status, createdAt])
   @@map("users")
+}
+
+/// Global control-plane authorization; tenant roles never grant this access.
+model PlatformAccess {
+  id String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+  role PlatformRole
+  status PlatformAccessStatus @default(ACTIVE)
+  createdByUserId String? @map("created_by_user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([role, status])
+  @@map("platform_access")
+}
+
+/// Bounded opaque admin session. Only its SHA-256 digest is persisted.
+model PlatformSession {
+  id String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  tokenHash String @unique @map("token_hash")
+  audience String @default("platform-admin")
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("platform_sessions")
+}
+
+/// Global, append-only platform record. Optional tenantId is target context.
+model PlatformAuditLog {
+  id String @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  actorUserId String @map("actor_user_id") @db.Uuid
+  actorRole PlatformRole @map("actor_role")
+  action String
+  targetType String @map("target_type")
+  targetId String? @map("target_id") @db.Uuid
+  tenantId String? @map("tenant_id") @db.Uuid
+  reason String?
+  requestId String? @map("request_id") @db.Uuid
+  correlationId String? @map("correlation_id") @db.Uuid
+  idempotencyKey String? @map("idempotency_key") @db.Uuid
+  outcome String @default("SUCCESS")
+  metadata Json @default("{}")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([actorUserId, idempotencyKey])
+  @@index([actorUserId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([createdAt, id])
+  @@map("platform_audit_logs")
 }
 
 /// SDD-03 §1 — membership connecting a user to a tenant and role.

@@ -212,8 +212,25 @@ Additional approved tables:
 refresh_tokens
 services
 service_areas
+platform_access
+platform_sessions
+platform_audit_logs
 ```
 
 `refresh_tokens` is global. `services` and `service_areas` are tenant-scoped and MUST receive ENABLE + FORCE RLS and isolation tests.
+
+V0.4 adds a separate platform control-plane boundary. Platform access and
+admin sessions are global and are FORCE-RLS-protected for the restricted
+`vautrin_platform_admin` role. The append-only platform audit log may include
+an optional tenant reference but is also FORCE-RLS-protected. That role has
+only explicitly granted access to safe user/membership/invitation metadata,
+tenant setup fields, platform access/session records, and audit insertion and
+readback. It cannot read business/customer records, customer password hashes,
+invitation-token hashes, rotating refresh-token hashes, or integration
+credentials; it cannot update or delete audit events. The platform-session
+digest is used only to find the matching opaque session and is never returned
+to the browser or logged. The runtime `vautrin_app` role cannot access platform tables. See
+[`platform administration`](13-platform-admin-console.md), ADR-017 and
+ADR-018 for the dedicated repository and grants.
 
 The reviewed V0.2 snapshot contained six migrations; subsequent approved schema changes must not hardcode migration counts as completion evidence.

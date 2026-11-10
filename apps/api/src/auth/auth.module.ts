@@ -9,6 +9,6 @@ import { RefreshTokenService } from './refresh-token.service.js';
   imports: [TenantModule],
   controllers: [AuthController],
   providers: [AuthService, AuthRateLimitService, RefreshTokenService],
-  exports: [AuthService],
+  exports: [AuthService, AuthRateLimitService],
 })
 export class AuthModule {}

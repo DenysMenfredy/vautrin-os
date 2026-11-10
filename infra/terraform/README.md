@@ -47,6 +47,26 @@ attribute. It cleans up the temporary environment and registry authentication.
 No service-account key file is required. API port 1447 is reachable only from
 GFE/health-check ranges; worker has no application ingress.
 
+## Optional platform admin host
+
+Set a distinct `admin_domain` in the private `environment.tfvars` to provision
+an independent static GCS bucket and CDN backend, managed TLS coverage, and
+host-based routing to the existing API. Admin routes and user/tenant deep links
+are explicitly mapped; `/api/admin/*` continues to the Nest API. The customer
+and admin apps remain separate origins. API runtime configuration includes
+`ADMIN_BASE_URL`, `APPLICATION_BASE_URL`, and a restricted
+`DATABASE_PLATFORM_URL`; do not give this database URL to the worker or either
+frontend. Provision the separate DB login using
+`../scripts/bootstrap-db.sql` and the instructions in
+[`v0.4 admin setup`](../../docs/v0.4-admin-setup.md).
+
+The admin frontend has its own protected manual staging workflow and GCS
+release bucket. Configure `ADMIN_FRONTEND_BUCKET`, `ADMIN_ORIGIN`, and
+`APPLICATION_ORIGIN` in the protected GitHub environment. This workflow deploys
+only the static artifact and performs route/security smoke checks; it does not
+apply Terraform or bootstrap a platform administrator. See
+[`deploy-admin-staging.yml`](../../.github/workflows/deploy-admin-staging.yml).
+
 ## Deployment and rollback
 
 Use `../scripts/deploy.sh` from a clean, committed source tree with

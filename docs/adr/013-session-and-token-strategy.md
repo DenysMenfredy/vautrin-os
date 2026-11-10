@@ -113,3 +113,18 @@ A refresh session stores nullable `active_tenant_id`. Tenant switching re-verifi
 ### Revocation semantics
 
 Membership revocation must revoke relevant refresh sessions/families in the same application-level security operation. Access JWTs retain the documented short stale window unless a route explicitly performs live membership validation.
+
+### V0.4 administrative revocation amendment
+
+The platform-admin control plane needs immediate disable, delete, tenant
+suspension, and membership-revocation semantics. Tenant bearer JWTs are
+therefore signature-verified and then checked against the live user,
+membership, and tenant lifecycle state before protected tenant requests run.
+Administrative lifecycle changes revoke refresh sessions in the same database
+transaction. This supersedes the earlier no-database-round-trip hot-path
+consequence for tenant-authenticated HTTP requests; an inactive identity,
+membership, or tenant cannot keep using an unexpired JWT.
+
+Platform-admin sessions remain a separate opaque, hashed, eight-hour session
+with their own `platform-admin` audience and are resolved from PostgreSQL on
+each request. The admin cookie never authenticates tenant routes.

@@ -14,3 +14,10 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 -- Migrations grant runtime table/function privileges. Cloud SQL does not grant
 -- PostgreSQL superuser. Verify all migrations with this restricted migrator in
 -- staging, including extensions and narrow SECURITY DEFINER discovery functions.
+
+-- Additional restricted control-plane login. Supply a separate generated password.
+\getenv platform_password VAUTRIN_PLATFORM_PASSWORD
+CREATE ROLE vautrin_platform_admin LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD :'platform_password';
+GRANT CONNECT ON DATABASE vautrin TO vautrin_platform_admin;
+GRANT USAGE ON SCHEMA public TO vautrin_platform_admin;
+-- The admin migration grants only explicit metadata/session/audit privileges.

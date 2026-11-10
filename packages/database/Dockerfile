@@ -33,6 +33,8 @@ WORKDIR /repo
 # ---------------------------------------------------------------------------
 FROM base AS build
 
+COPY apps/admin/package.json apps/admin/
+COPY packages/ui/package.json packages/ui/
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY packages/queues/package.json packages/queues/
 COPY packages/integrations/package.json packages/integrations/

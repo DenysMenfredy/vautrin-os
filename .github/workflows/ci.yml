@@ -67,8 +67,10 @@ jobs:
 
       # The Docker/Nitro build above does not prove that the GCS artifact
       # exists or that /api remains same-origin in the browser bundle.
-      - name: Generate and verify static frontend
-        run: pnpm --filter @vautrin/web build:static
+      - name: Generate and verify separate static frontends
+        run: |
+          pnpm --filter @vautrin/web build:static
+          pnpm --filter @vautrin/admin build:static
 
   # -------------------------------------------------------------------------
   integration:
@@ -105,6 +107,7 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://vautrin_app:vautrin_ci@localhost:5432/vautrin?schema=public
+      DATABASE_PLATFORM_URL: postgresql://vautrin_platform_admin:vautrin_ci@localhost:5432/vautrin?schema=public
       DATABASE_MIGRATION_URL: postgresql://vautrin_migrator:vautrin_ci@localhost:5432/vautrin?schema=public
       REDIS_URL: redis://localhost:6379
       EMBEDDING_DIMENSIONS: '1536'
@@ -134,6 +137,7 @@ jobs:
           psql -h localhost -U vautrin -d vautrin -v ON_ERROR_STOP=1 <<'SQL'
           CREATE ROLE vautrin_migrator LOGIN CREATEDB SUPERUSER PASSWORD 'vautrin_ci';
           CREATE ROLE vautrin_app LOGIN NOBYPASSRLS NOCREATEDB NOSUPERUSER PASSWORD 'vautrin_ci';
+          CREATE ROLE vautrin_platform_admin LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT PASSWORD 'vautrin_ci';
           ALTER SCHEMA public OWNER TO vautrin_migrator;
           GRANT CONNECT ON DATABASE vautrin TO vautrin_app;
           GRANT USAGE ON SCHEMA public TO vautrin_app;
@@ -219,7 +223,7 @@ jobs:
       - name: Assert images do not run as root
         run: |
           status=0
-          for dockerfile in apps/api/Dockerfile apps/worker/Dockerfile apps/web/Dockerfile; do
+          for dockerfile in apps/api/Dockerfile apps/worker/Dockerfile apps/web/Dockerfile apps/admin/Dockerfile; do
             if ! grep -qE '^USER[[:space:]]+node' "$dockerfile"; then
               echo "::error file=$dockerfile::missing 'USER node' — image would run as root"
               status=1
@@ -248,7 +252,9 @@ jobs:
         run: terraform -chdir=infra/terraform init -backend=false -lockfile=readonly
       - name: Terraform validation
         run: terraform -chdir=infra/terraform validate
+      - name: Mocked admin routing tests
+        run: terraform -chdir=infra/terraform test -no-color
       - name: Deployment script checks
         run: |
-          bash -n infra/scripts/deploy.sh
+          bash -n infra/scripts/deploy.sh infra/scripts/deploy-admin.sh
           python3 -m unittest discover -s infra/scripts -p 'test_*.py'

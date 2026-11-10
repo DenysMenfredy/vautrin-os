@@ -4,6 +4,10 @@
   "globalEnv": ["NODE_ENV"],
   "globalPassThroughEnv": [
     "DATABASE_URL",
+    "DATABASE_PLATFORM_URL",
+    "POSTGRES_PLATFORM_PASSWORD",
+    "ADMIN_BASE_URL",
+    "APPLICATION_BASE_URL",
     "DATABASE_MIGRATION_URL",
     "REDIS_URL",
     "JWT_SECRET",

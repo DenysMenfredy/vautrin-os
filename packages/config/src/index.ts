@@ -50,6 +50,11 @@ const environmentSchema = z.object({
   API_PORT: z.coerce.number().int().positive().max(65535).default(1447),
   API_GLOBAL_PREFIX: z.string().default('api'),
 
+  /** Separate, least-privilege control-plane connection (ADR-018). */
+  DATABASE_PLATFORM_URL: postgresUrl.optional(),
+  ADMIN_BASE_URL: z.string().url().default('http://localhost:8081'),
+  APPLICATION_BASE_URL: z.string().url().default('http://localhost:8080'),
+
   /** Exact browser origins allowed to send cookie-authenticated mutations. */
   TRUSTED_ORIGINS: z.string().default(''),
 
@@ -91,6 +96,23 @@ export function loadEnvironment(source: NodeJS.ProcessEnv = process.env): Enviro
   }
 
   const environment = result.data;
+
+  for (const name of ['ADMIN_BASE_URL', 'APPLICATION_BASE_URL'] as const) {
+    const url = new URL(environment[name]);
+    if (
+      url.origin !== environment[name] ||
+      url.username ||
+      url.password ||
+      (environment.NODE_ENV === 'production' &&
+        environment.DATABASE_PLATFORM_URL &&
+        url.protocol !== 'https:') ||
+      !['http:', 'https:'].includes(url.protocol)
+    ) {
+      throw new ConfigurationError(
+        `${name} must be an exact ${environment.NODE_ENV === 'production' ? 'HTTPS ' : ''}origin.`,
+      );
+    }
+  }
 
   if (environment.NODE_ENV === 'production' && environment.DATABASE_MIGRATION_URL) {
     const runtimeRole = roleOf(environment.DATABASE_URL);

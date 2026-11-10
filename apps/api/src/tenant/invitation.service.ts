@@ -10,6 +10,8 @@ import { hashPassword, type Role, verifyPassword } from '@vautrin/auth';
 import type { InvitationResponse } from '@vautrin/contracts';
 
 import { DatabaseService } from '../database/database.service.js';
+import { issueTenantInvitation } from './invitation-issuance.js';
+import { provisionTenantConfiguration } from './provisioning.js';
 
 const INVITATION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const INVALID_INVITATION = 'Invalid or expired invitation.';
@@ -26,59 +28,15 @@ export class InvitationService {
     ownerEmail: string;
     vertical?: string;
   }): Promise<{ tenantId: string } & InvitationResponse> {
-    const email = normalizeEmail(input.ownerEmail);
-    const secret = newInvitationSecret();
-
-    // A new tenant can satisfy tenants' FORCE RLS policy by setting its
-    // generated id as the transaction-local context before the INSERT.
     // nosemgrep: semgrep.vautrin-unscoped-database-access
     return this.database.unscoped.$transaction(async (tx) => {
-      const [generated] = await tx.$queryRaw<Array<{ id: string }>>`
-        SELECT uuidv7()::text AS id
-      `;
-      if (!generated) throw new Error('Failed to generate tenant id.');
-      const tenantId = generated.id;
-      await tx.$executeRaw`SELECT set_config('app.tenant_id', ${tenantId}, true)`;
-
-      try {
-        await tx.tenant.create({
-          data: {
-            id: tenantId,
-            slug: input.slug,
-            name: input.name,
-            vertical: input.vertical ?? 'generic-local-business',
-          },
-        });
-      } catch (error) {
-        // This insert has only one caller-controlled unique field (slug).
-        // Some Prisma adapters omit meta.target and report "(not available)",
-        // so classify P2002 at this exact operation instead of relying on it.
-        if (isUniqueViolation(error)) {
-          throw new ConflictException(`Tenant slug "${input.slug}" is already taken.`);
-        }
-        throw error;
-      }
-
-      const invitation = await tx.tenantInvitation.create({
-        data: {
-          tenantId,
-          email,
-          role: 'OWNER',
-          tokenHash: secret.hash,
-          expiresAt: expiry(),
-        },
+      const tenant = await provisionTenantConfiguration(tx, input);
+      const invitation = await issueTenantInvitation(tx, {
+        tenantId: tenant.id,
+        email: input.ownerEmail,
+        role: 'OWNER',
       });
-      await tx.auditLog.create({
-        data: {
-          tenantId,
-          actorType: 'SYSTEM',
-          action: 'tenant.invitation.issued',
-          resourceType: 'tenant_invitation',
-          resourceId: invitation.id,
-          metadata: { bootstrap: true, role: 'OWNER' },
-        },
-      });
-      return { tenantId, ...issuedInvitation(invitation, secret.token) };
+      return { tenantId: tenant.id, ...invitation };
     });
   }
 
@@ -144,58 +102,9 @@ export class InvitationService {
     if (input.role === 'OWNER' && input.actorRole !== 'OWNER') {
       throw new ForbiddenException('Only an owner may invite another owner.');
     }
-    const email = normalizeEmail(input.email);
-    const secret = newInvitationSecret();
-
-    return this.database.withTenant(input.tenantId, async (tx) => {
-      const tenant = await tx.tenant.findUnique({ where: { id: input.tenantId } });
-      if (tenant?.status !== 'ACTIVE' || tenant.deletedAt) {
-        throw new ForbiddenException('Tenant is not active.');
-      }
-
-      const user = await tx.user.findUnique({
-        where: { email },
-        select: { id: true, status: true },
-      });
-      if (user) {
-        const membership = await tx.tenantUser.findUnique({
-          where: { tenantId_userId: { tenantId: input.tenantId, userId: user.id } },
-          select: { status: true },
-        });
-        if (membership?.status === 'ACTIVE' && user.status === 'ACTIVE') {
-          throw new ConflictException('This user is already an active member.');
-        }
-      }
-
-      // Reissuing an invitation invalidates old links without removing audit
-      // history; all writes stay inside the same tenant transaction.
-      await tx.tenantInvitation.updateMany({
-        where: { tenantId: input.tenantId, email, acceptedAt: null, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      const invitation = await tx.tenantInvitation.create({
-        data: {
-          tenantId: input.tenantId,
-          email,
-          role: input.role,
-          tokenHash: secret.hash,
-          expiresAt: expiry(),
-          invitedBy: input.actorUserId,
-        },
-      });
-      await tx.auditLog.create({
-        data: {
-          tenantId: input.tenantId,
-          actorType: 'USER',
-          actorId: input.actorUserId,
-          action: 'tenant.invitation.issued',
-          resourceType: 'tenant_invitation',
-          resourceId: invitation.id,
-          metadata: { role: input.role },
-        },
-      });
-      return issuedInvitation(invitation, secret.token);
-    });
+    return this.database.withTenant(input.tenantId, (tx) =>
+      issueTenantInvitation(tx, { ...input, reissue: true }),
+    );
   }
 
   /** Public endpoint: token proves the invitation; password proves identity. */
@@ -327,10 +236,4 @@ function issuedInvitation(
   token: string,
 ): InvitationResponse {
   return { invitationId: invitation.id, token, expiresAt: invitation.expiresAt.toISOString() };
-}
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const candidate = error as { code?: unknown; meta?: { target?: unknown } };
-  return candidate.code === 'P2002';
 }

@@ -42,6 +42,8 @@ FROM base AS build
 
 # Manifests before source, so the dependency layer is only invalidated when
 # a package.json or the lockfile changes — not on every code edit.
+COPY apps/admin/package.json apps/admin/
+COPY packages/ui/package.json packages/ui/
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json .npmrc ./
 COPY patches ./patches
 COPY packages/config/package.json   packages/config/
