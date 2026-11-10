@@ -34,7 +34,7 @@ fi
 docker stop --time 60 vautrin-${role} 2>/dev/null || true
 docker rm vautrin-${role} 2>/dev/null || true
 if [ '${role}' = api ]; then
-  docker run -d --name vautrin-api --restart unless-stopped --init --log-driver gcplogs --log-opt gcp-project='${project}' --env-file /run/vautrin/environment -p 3000:3000 '${image}'
+  docker run -d --name vautrin-api --restart unless-stopped --init --log-driver gcplogs --log-opt gcp-project='${project}' --env-file /run/vautrin/environment -p 1447:1447 '${image}'
 else
   docker run -d --name vautrin-worker --restart unless-stopped --init --log-driver gcplogs --log-opt gcp-project='${project}' --env-file /run/vautrin/environment '${image}'
 fi

@@ -27,7 +27,7 @@ function hasTraversalSegment(path: string): boolean {
   return decoded.split(/[/\\]/).some((segment) => segment === '..' || segment === '.');
 }
 
-const API_BASE = 'http://api:3000/api';
+const API_BASE = 'http://api:1447/api';
 
 /** Mirrors the handler: returns the target URL, or null when rejected. */
 function resolveTarget(path: string): string | null {
@@ -44,11 +44,11 @@ function resolveTarget(path: string): string | null {
 
 describe('API proxy path confinement', () => {
   it.each([
-    ['health/ready', 'http://api:3000/api/health/ready'],
-    ['leads', 'http://api:3000/api/leads'],
+    ['health/ready', 'http://api:1447/api/health/ready'],
+    ['leads', 'http://api:1447/api/leads'],
     [
       'contacts/0192f1a0-1b2c-7d3e-8f40-51627384950a',
-      'http://api:3000/api/contacts/0192f1a0-1b2c-7d3e-8f40-51627384950a',
+      'http://api:1447/api/contacts/0192f1a0-1b2c-7d3e-8f40-51627384950a',
     ],
   ])('forwards %s', (path, expected) => {
     expect(resolveTarget(path)).toBe(expected);
@@ -72,7 +72,7 @@ describe('API proxy path confinement', () => {
     // proxy at another host.
     for (const path of ['//evil.example.com/x', 'http://evil.example.com/x']) {
       const target = resolveTarget(path);
-      expect(target === null || target.startsWith('http://api:3000/api/')).toBe(true);
+      expect(target === null || target.startsWith('http://api:1447/api/')).toBe(true);
     }
   });
 });

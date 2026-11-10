@@ -63,7 +63,7 @@ services:
       # The least-privileged role. RLS only constrains this one (ADR-005).
       DATABASE_URL: *database-url
       REDIS_URL: redis://redis:6379
-      API_PORT: 3000
+      API_PORT: 1447
       API_GLOBAL_PREFIX: ${API_GLOBAL_PREFIX:-api}
       TRUSTED_ORIGINS: ${TRUSTED_ORIGINS:?TRUSTED_ORIGINS must be set}
       TRUST_PROXY: ${TRUST_PROXY:-0}
@@ -78,7 +78,7 @@ services:
     volumes:
       - ${LOCAL_SECRET_HOST_DIRECTORY:-./.local-secrets}:/var/lib/vautrin/secrets
     ports:
-      - '${API_HOST_PORT:-3000}:3000'
+      - '${API_HOST_PORT:-1447}:1447'
     depends_on:
       postgres:
         condition: service_healthy
@@ -126,14 +126,13 @@ services:
       NODE_ENV: ${NODE_ENV:-production}
       # Server-side only. The browser never sees this: it calls /api on the
       # Nuxt origin and Nitro proxies onward (apps/web/server/api).
-      NUXT_API_INTERNAL_BASE: http://api:3000/api
+      NUXT_API_INTERNAL_BASE: http://api:1447/api
       # Relative, so browser requests stay same-origin — no CORS, and session
       # cookies work once auth lands (VOS-030).
       NUXT_PUBLIC_API_BASE: /api
-      PORT: 3000
+      PORT: 8080
     ports:
-      # 3001 is commonly occupied on developer machines, so 3002 by default.
-      - '${WEB_HOST_PORT:-3002}:3000'
+      - '${WEB_HOST_PORT:-8080}:8080'
     depends_on:
       api:
         condition: service_healthy

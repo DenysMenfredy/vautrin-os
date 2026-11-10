@@ -32,7 +32,7 @@ versions. It does not deploy cloud resources during local tests.
    versions; the worker cannot change them.
 6. Set `NODE_ENV=production`, `GCP_PROJECT_ID`, `JWT_SECRET`, `REDIS_URL=rediss://...`,
    `REDIS_TLS_CA_BASE64` from the public provider CA, `EMBEDDING_DIMENSIONS=1536` and
-   `API_GLOBAL_PREFIX=api`. Set API `TRUSTED_ORIGINS` to the exact HTTPS origin.
+   `API_PORT=1447`, `API_GLOBAL_PREFIX=api`. Set API `TRUSTED_ORIGINS` to the exact HTTPS origin.
    Set the proxy-hop count to match the tested GFE/X-Forwarded-For topology.
    Worker alone receives `OPENAI_API_KEY`. API receives Google OAuth Web client
    credentials with callback `https://DOMAIN/api/integrations/google-calendar/callback`.
@@ -44,7 +44,7 @@ The startup artifact downloads an environment map into a protected temporary
 file, pulls the image with its attached identity, drains the old container,
 starts the replacement, checks its Docker health and publishes a revision guest
 attribute. It cleans up the temporary environment and registry authentication.
-No service-account key file is required. API port 3000 is reachable only from
+No service-account key file is required. API port 1447 is reachable only from
 GFE/health-check ranges; worker has no application ingress.
 
 ## Deployment and rollback

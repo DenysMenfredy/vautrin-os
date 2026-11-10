@@ -57,7 +57,7 @@ ENV NODE_ENV=production \
     # Nitro reads these. HOST must be 0.0.0.0 or the server binds to
     # loopback inside the container and nothing can reach it.
     HOST=0.0.0.0 \
-    PORT=3000
+    PORT=8080
 
 WORKDIR /app
 
@@ -65,13 +65,13 @@ COPY --from=build --chown=node:node /repo/apps/web/.output ./
 
 USER node
 
-EXPOSE 3000
+EXPOSE 8080
 
 # Renders the page, which proves Nitro is serving. It stays healthy while the
 # API is down on purpose: the frontend degrades to an "unreachable" tile
 # rather than failing, and taking the web container out of rotation for a
 # backend outage would only remove the page that explains the outage.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 CMD ["node", "server/index.mjs"]

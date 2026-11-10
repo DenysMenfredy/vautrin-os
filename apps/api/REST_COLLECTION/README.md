@@ -2,7 +2,7 @@
 
 This OpenCollection contains requests for the API routes implemented today.
 Open this directory in Bruno; the `Local API` environment is selected by
-default and targets `http://localhost:3000/api`.
+default and targets `http://localhost:1447/api`.
 
 ## Get an access token for local testing
 

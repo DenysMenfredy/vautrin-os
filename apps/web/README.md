@@ -6,12 +6,13 @@ The Vautrin OS operations workspace — Nuxt 4 + Vue 3 + TypeScript.
 
 ```bash
 docker compose -f infra/docker-compose.yml up -d
-pnpm --filter @vautrin/api dev     # port 3000
-pnpm --filter @vautrin/web dev     # port 3002
+pnpm --filter @vautrin/api dev     # port 1447
+pnpm --filter @vautrin/web dev     # port 8080
 ```
 
-Port 3002, not 3001: 3000 belongs to the API and 3001 is commonly taken by
-other local services.
+Open `http://localhost:8080`. The API listens on `http://localhost:1447/api`.
+The production server started with `pnpm --filter @vautrin/web start` also
+defaults to port 8080; set `PORT` to override it.
 
 ## Structure
 
@@ -52,7 +53,7 @@ public `/api` path at build time and does not use `apiInternalBase`:
 | `apiInternalBase` | `NUXT_API_INTERNAL_BASE` | Where Nitro proxies. Server-only; never reaches the browser. |
 | `public.apiBase` | `NUXT_PUBLIC_API_BASE` | What the browser calls. Relative (`/api`). |
 
-In Compose, `apiInternalBase` is `http://api:3000/api` — a private address
+In Compose, `apiInternalBase` is `http://api:1447/api` — a private address
 the browser could never resolve, which is exactly why it stays server-side.
 
 ## Static production artifact

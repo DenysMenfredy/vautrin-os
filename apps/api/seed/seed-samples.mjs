@@ -30,7 +30,7 @@ function requireDevelopmentConfiguration() {
 }
 
 function getApiBaseUrl() {
-  const port = process.env.API_PORT ?? '3000';
+  const port = process.env.API_PORT ?? '1447';
   const prefix = process.env.API_GLOBAL_PREFIX ?? '/api';
   const candidate = process.env.SEED_API_BASE_URL ?? `http://127.0.0.1:${port}${prefix}`;
   let url;

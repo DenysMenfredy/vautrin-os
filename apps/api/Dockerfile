@@ -80,7 +80,7 @@ RUN pnpm deploy --filter=@vautrin/api --prod --ignore-scripts /prod/api
 FROM base AS runtime
 
 ENV NODE_ENV=production \
-    API_PORT=3000
+    API_PORT=1447
 
 WORKDIR /app
 
@@ -91,12 +91,12 @@ COPY --from=build --chown=node:node /prod/api ./
 
 USER node
 
-EXPOSE 3000
+EXPOSE 1447
 
 # Uses the readiness probe, which verifies the database rather than merely
 # proving the process is up. No curl in a slim image, so Node makes the call.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.API_PORT||3000)+'/'+(process.env.API_GLOBAL_PREFIX||'api')+'/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.API_PORT||1447)+'/'+(process.env.API_GLOBAL_PREFIX||'api')+'/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 
 # Exec form so the process is PID 1 and receives SIGTERM directly; Nest's
 # shutdown hooks then drain in-flight requests and close the database pool.

@@ -19,7 +19,7 @@ export default defineNuxtConfig({
   /**
    * `apiInternalBase` is where Nitro proxies API calls (server/api). It is
    * server-only, so the API's real location never reaches the browser, and
-   * it can point at a private address such as http://api:3000/api inside a
+   * it can point at a private address such as http://api:1447/api inside a
    * container network.
    *
    * `public.apiBase` is relative on purpose — the browser talks to /api on
@@ -30,14 +30,13 @@ export default defineNuxtConfig({
    *   NUXT_API_INTERNAL_BASE, NUXT_PUBLIC_API_BASE
    */
   runtimeConfig: {
-    apiInternalBase: 'http://localhost:3000/api',
+    apiInternalBase: 'http://localhost:1447/api',
     public: {
       apiBase: '/api',
     },
   },
 
-  // 3000 is apps/api; 3001 is commonly occupied on developer machines.
-  devServer: { port: 3002 },
+  devServer: { port: 8080 },
 
   /**
    * Security headers (SDD-09).

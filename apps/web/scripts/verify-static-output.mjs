@@ -16,7 +16,7 @@ for (const path of ['200.html', '404.html']) {
 assert.match(shell, /id="__nuxt"/, 'static output must contain the Nuxt app mount');
 assert.match(shell, /data-ssr="false"/, 'static output must not contain prerendered tenant data');
 assert.match(shell, /apiBase:\s*["']\/api["']/, 'browser API requests must use same-origin /api');
-assert.doesNotMatch(shell, /apiInternalBase|http:\/\/localhost:3000|http:\/\/api:3000/);
+assert.doesNotMatch(shell, /apiInternalBase|http:\/\/localhost:1447|http:\/\/api:1447/);
 
 for (const route of [
   'agents',

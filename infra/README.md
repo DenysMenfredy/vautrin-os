@@ -100,5 +100,6 @@ themselves (VOS-122).
 ## Ports
 
 Host `5435` for PostgreSQL, not `5432` — local PostgreSQL installs commonly
-occupy 5432 and 5433. Override with `POSTGRES_PORT`, `REDIS_PORT` and
-`API_HOST_PORT`.
+occupy 5432 and 5433. The API uses port `1447` and the web app uses port `8080`.
+Override host ports with `POSTGRES_PORT`, `REDIS_PORT`, `API_HOST_PORT` and
+`WEB_HOST_PORT`.

@@ -44,7 +44,7 @@ resource "google_compute_instance_group" "api" {
   instances = [google_compute_instance.runtime["api"].self_link]
   named_port {
     name = "http"
-    port = 3000
+    port = 1447
   }
 }
 resource "google_compute_health_check" "api" {
@@ -52,7 +52,7 @@ resource "google_compute_health_check" "api" {
   check_interval_sec = 10
   timeout_sec        = 5
   http_health_check {
-    port         = 3000
+    port         = 1447
     request_path = "/api/health/ready"
   }
 }

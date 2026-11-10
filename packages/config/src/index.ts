@@ -47,7 +47,7 @@ const environmentSchema = z.object({
       'must be a redis:// connection string',
     ),
 
-  API_PORT: z.coerce.number().int().positive().max(65535).default(3000),
+  API_PORT: z.coerce.number().int().positive().max(65535).default(1447),
   API_GLOBAL_PREFIX: z.string().default('api'),
 
   /** Exact browser origins allowed to send cookie-authenticated mutations. */

@@ -16,8 +16,13 @@ packages/database/generated/
 .env.*
 !.env.example
 
-# Local repository bundles can contain .git/, node_modules/, and .env files.
-/vautrin-os-v-01.zip
+# Local archives can contain dependencies, build output, and secrets.
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
 
 # Test / coverage
 coverage/
@@ -34,7 +39,6 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 
-.zip
 .local-secrets/
 *.tfstate
 *.tfstate.*

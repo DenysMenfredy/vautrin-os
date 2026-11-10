@@ -41,7 +41,7 @@ resource "google_compute_firewall" "api_ingress" {
   target_service_accounts = [google_service_account.runtime["api"].email]
   allow {
     protocol = "tcp"
-    ports    = ["3000"]
+    ports    = ["1447"]
   }
 }
 resource "google_compute_firewall" "iap_ssh" {

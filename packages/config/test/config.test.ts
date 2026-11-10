@@ -14,7 +14,7 @@ describe('loadEnvironment', () => {
   it('applies defaults', () => {
     const env = loadEnvironment(valid);
     expect(env.NODE_ENV).toBe('development');
-    expect(env.API_PORT).toBe(3000);
+    expect(env.API_PORT).toBe(1447);
     expect(env.API_GLOBAL_PREFIX).toBe('api');
     expect(env.TRUST_PROXY).toBe(0);
     expect(env.LOG_LEVEL).toBe('info');

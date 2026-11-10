@@ -25,11 +25,11 @@ export function scopedTenantRead(database: Database, tenantId: string) {
 export function vulnerableProxy() {
   const path = getRouterParam('path');
   // ruleid: vautrin-nitro-proxy-tainted-path
-  return proxyRequest(`http://api:3000/api/${path}`);
+  return proxyRequest(`http://api:1447/api/${path}`);
 }
 
 export function confinedProxy() {
-  const base = new URL('http://api:3000/api/');
+  const base = new URL('http://api:1447/api/');
   const target = new URL(getRouterParam('path'), base);
   if (target.origin !== base.origin || !target.pathname.startsWith(base.pathname)) {
     throw new Error('Invalid proxy target');

@@ -1,7 +1,7 @@
 name: Local API
 variables:
   - name: baseUrl
-    value: http://localhost:3000/api
+    value: http://localhost:1447/api
   - name: tenantId
     value: ""
   - secret: true
